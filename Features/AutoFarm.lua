@@ -5,7 +5,6 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 
 local Player = Players.LocalPlayer
 local Container = workspace:WaitForChild("AreaEggSlotsClient")
@@ -168,7 +167,6 @@ local function ScanEggs()
         end
     end
     
-    -- តម្រៀបតាម $/s ពីខ្ពស់ទៅទាប
     table.sort(EggList, function(a, b)
         return a.EarningRate > b.EarningRate
     end)
@@ -196,16 +194,8 @@ local function SelectEgg(EggData)
     SelectedEgg = EggData
     print("[YOKUDO] Selected Egg: " .. EggData.DisplayName .. " ($" .. FormatMoney(EggData.EarningRate) .. "/s)")
     
-    -- Send to Teleport System
     if _G.YOKUDO_TeleportSystem then
-        _G.YOKUDO_TeleportSystem.Enable()
-        local EggPos = nil
-        if EggData.Model and EggData.Model.PrimaryPart then
-            EggPos = EggData.Model.PrimaryPart.Position
-        end
-        if EggPos then
-            _G.YOKUDO_TeleportSystem.FlyToPosition(EggPos)
-        end
+        _G.YOKUDO_TeleportSystem.SetTargetId(EggData.Id)
     end
 end
 
