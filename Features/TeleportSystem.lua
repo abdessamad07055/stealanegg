@@ -2,6 +2,7 @@
 -- YOKUDO HUB | FEATURE | Teleport System
 -- Egg Collect + Fast Return to Safe
 -- Remote Collect + Distance 8 + No Hover
+-- Collect 2 Only (Fixed)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -35,14 +36,14 @@ end
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 
 local FLY_SPEED = 1000
-local RETURN_SPEED = 950
+local RETURN_SPEED = 1000
 local FLY_OFFSET = 15
 local SHOT_DISTANCE = 30
 local ARRIVE_DISTANCE = 2
 local SAFE_LOCK_DISTANCE = 3
 
 local MIN_FLY_DISTANCE = 3
-local LOCK_DISTANCE = 8 -- ចម្ងាយ 8 សម្រាប់ Lock
+local LOCK_DISTANCE = 8
 local Y_CHANGE_THRESHOLD = 1
 
 -- CAMERA SETTINGS (Top-Down View)
@@ -74,6 +75,7 @@ local WaitingRetry = false
 local GoingToSafe = false
 local OriginalCameraSubject = nil
 local CameraLocked = false
+local IsCollecting = false -- Flag: កំពុង Collect ឬអត់
 
 local FlyConnection = nil
 local BodyVelocity = nil
@@ -428,6 +430,7 @@ local function ResetStateRetry()
     WaitingRetry = false
     RetryStartTime = 0
     GoingToSafe = false
+    IsCollecting = false
 
     CleanupMovers()
     StopAutoCollect()
@@ -452,6 +455,7 @@ local function FullReset()
     RetryStartTime = 0
     GoingToSafe = false
     CollectCount = 0
+    IsCollecting = false
 
     CleanupMovers()
     StopAutoCollect()
@@ -509,9 +513,11 @@ local function StartActiveHeartbeat()
             CurrentY = GetEggY(CurrentEgg)
         end
 
-        if SavedYBefore and CurrentY and not CollectDone then
+        -- ពិនិត្យ Y Change តែពេល IsCollecting = true
+        if IsCollecting and SavedYBefore and CurrentY and not CollectDone then
             if CurrentY - SavedYBefore >= Y_CHANGE_THRESHOLD then
                 CollectDone = true
+                IsCollecting = false
                 CollectCount = CollectCount + 1
 
                 if CollectCount >= COLLECT_TARGET then
@@ -550,6 +556,7 @@ local function StartActiveHeartbeat()
                 local Y = GetEggY(TargetEgg)
                 if Y and not SavedYBefore then
                     SavedYBefore = Y
+                    IsCollecting = true
                 end
             end
 
@@ -634,6 +641,7 @@ local function Enable()
     WaitingRetry = false
     GoingToSafe = false
     CollectCount = 0
+    IsCollecting = false
     SaveStats()
 
     StartActiveHeartbeat()
@@ -681,4 +689,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_ID end
 }
 
-print("✅ TeleportSystem Feature Loaded (Remote Collect + Distance 8 + No Hover)")
+print("✅ TeleportSystem Feature Loaded (Collect 2 Only)")
