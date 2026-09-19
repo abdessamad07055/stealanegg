@@ -39,7 +39,7 @@ local MIN_FLY_DISTANCE = 3
 local Y_CHANGE_THRESHOLD = 1
 
 -- CAMERA SETTINGS (Top-Down View)
-local CAMERA_HEIGHT = 2        -- កម្ពស់ Camera ពីលើ Egg
+local CAMERA_HEIGHT = 3        -- កម្ពស់ Camera ពីលើ Egg
 local CAMERA_DISTANCE = 0      -- ចម្ងាយពី Egg (0 = មើលពីលើតែម្តង)
 local CAMERA_ZOOM_STEP = 0.5   -- Zoom បន្ថែមពេលមិនឃើញ Hover
 local CAMERA_MIN_HEIGHT = 1    -- កម្ពស់អប្បបរមា
