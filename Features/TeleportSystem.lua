@@ -46,7 +46,7 @@ local LOCK_DISTANCE = 8 -- ចម្ងាយ 8 សម្រាប់ Lock
 local Y_CHANGE_THRESHOLD = 1
 
 -- CAMERA SETTINGS (Top-Down View)
-local CAMERA_HEIGHT = 3
+local CAMERA_HEIGHT = 8
 local CAMERA_DISTANCE = 0
 local CAMERA_ZOOM_STEP = 0.5
 local CAMERA_MIN_HEIGHT = 1
