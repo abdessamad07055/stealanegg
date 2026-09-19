@@ -4,7 +4,6 @@
 -- Y Change (1) -> Save YChanged -> Wait Y Return
 -- Round 2: Y Return -> Fly TP + Lock Behind 3 + Collect
 -- Y Change (2) -> Fly TP Safe Zone
--- Uid: 26f67a4a6dcc48dda9880599bafc6f76
 -- Safe Zone: (533, 70, -366)
 --==================================================
 
@@ -39,7 +38,7 @@ print("[YOKUDO] Event found:", Event.ClassName)
 -- SETTINGS
 --==================================================
 
-local TARGET_UID = "26f67a4a6dcc48dda9880599bafc6f76"
+local TARGET_UID = nil  -- រង់ចាំ Auto Farming ផ្ញើ ID មក
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 
 local FLY_SPEED = 1100
@@ -161,7 +160,7 @@ end
 --==================================================
 
 local function FindEggInContainer()
-    if not Container then return nil end
+    if not Container or not TARGET_UID then return nil end
     local Direct = Container:FindFirstChild(TARGET_UID)
     if Direct then return Direct end
     for _, Desc in ipairs(Container:GetDescendants()) do
@@ -171,6 +170,7 @@ local function FindEggInContainer()
 end
 
 local function FindEggInWorkspace()
+    if not TARGET_UID then return nil end
     local WSEgg = workspace:FindFirstChild(TARGET_UID)
     if WSEgg then return WSEgg end
     for _, Desc in ipairs(workspace:GetChildren()) do
@@ -232,7 +232,7 @@ end
 --==================================================
 
 local function RemoteCollectEgg()
-    if not Event then return false end
+    if not Event or not TARGET_UID then return false end
 
     local success, result = pcall(function()
         return Event:InvokeServer({
@@ -449,6 +449,7 @@ local function StartHeartbeat()
     HeartbeatConnection = RunService.Heartbeat:Connect(function()
         if not Running then return end
         if IsGoingSafe then return end
+        if not TARGET_UID then return end
 
         local Hum, Root = GetHumanoid()
         if not Hum or not Root then return end
@@ -563,6 +564,7 @@ task.spawn(function()
         if not Running then continue end
         if IsGoingSafe then continue end
         if IsWaitingReturn then continue end
+        if not TARGET_UID then continue end
 
         local Hum, Root = GetHumanoid()
         if not Hum or not Root then continue end
@@ -664,5 +666,4 @@ _G.YOKUDO_TeleportSystem = {
 print("[YOKUDO] Remote Collect loaded (2 Rounds Y)")
 print("[YOKUDO] Lock Behind:", LOCK_BEHIND)
 print("[YOKUDO] Min Fly Distance:", MIN_FLY_DISTANCE)
-print("[YOKUDO] Uid:", TARGET_UID)
 print("[YOKUDO] Event:", Event)
