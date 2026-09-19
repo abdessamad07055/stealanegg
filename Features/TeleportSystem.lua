@@ -42,8 +42,8 @@ print("[YOKUDO] Event found:", Event.ClassName)
 local TARGET_UID = "26f67a4a6dcc48dda9880599bafc6f76"
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 
-local FLY_SPEED = 500
-local RETURN_SPEED = 350
+local FLY_SPEED = 1100
+local RETURN_SPEED = 1000
 local FLY_OFFSET = 3
 local SHOT_DISTANCE = 30
 local ARRIVE_DISTANCE = 2
