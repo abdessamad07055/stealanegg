@@ -174,64 +174,64 @@ Loading.Update(25)
 loadstring(GetScript("Tabs/Init.lua"))()
 
 -- ==================================================
--- LOAD TABS
+-- LOAD FEATURES (មុន Tabs ដែលត្រូវការ _G)
 -- ==================================================
 Loading.Update(30)
-loadstring(GetScript("Tabs/Info.lua"))()
-
-Loading.Update(35)
-loadstring(GetScript("Tabs/Farming.lua"))()
-
-Loading.Update(40)
-loadstring(GetScript("Tabs/Combat.lua"))()
-
-Loading.Update(45)
-loadstring(GetScript("Tabs/AutoFarming.lua"))()
-
-Loading.Update(50)
-loadstring(GetScript("Tabs/Event.lua"))()
-
-Loading.Update(55)
-loadstring(GetScript("Tabs/HopServer.lua"))()
-
-Loading.Update(60)
-loadstring(GetScript("Tabs/Setting.lua"))()
-
--- ==================================================
--- LOAD FEATURES (លើកលែង Anti Cheat)
--- ==================================================
-Loading.Update(65)
 loadstring(GetScript("Features/WalkSpeed.lua"))()
 
-Loading.Update(70)
+Loading.Update(35)
 loadstring(GetScript("Features/AntiTrap.lua"))()
 
-Loading.Update(75)
+Loading.Update(40)
 loadstring(GetScript("Features/GodMode.lua"))()
 
-Loading.Update(80)
+Loading.Update(45)
 loadstring(GetScript("Features/TeleportSystem.lua"))()
 
--- ==================================================
--- LOAD AUTO ATTACK
--- ==================================================
-Loading.Update(82)
+Loading.Update(50)
+loadstring(GetScript("Features/AutoFarm.lua"))()
+
+Loading.Update(55)
 loadstring(GetScript("Features/AutoAttack.lua"))()
+
+-- ==================================================
+-- LOAD TABS
+-- ==================================================
+Loading.Update(60)
+loadstring(GetScript("Tabs/Info.lua"))()
+
+Loading.Update(65)
+loadstring(GetScript("Tabs/Farming.lua"))()
+
+Loading.Update(70)
+loadstring(GetScript("Tabs/Combat.lua"))()
+
+Loading.Update(75)
+loadstring(GetScript("Tabs/AutoFarming.lua"))()
+
+Loading.Update(80)
+loadstring(GetScript("Tabs/Event.lua"))()
+
+Loading.Update(85)
+loadstring(GetScript("Tabs/HopServer.lua"))()
+
+Loading.Update(90)
+loadstring(GetScript("Tabs/Setting.lua"))()
 
 -- ==================================================
 -- SELECT DEFAULT TAB
 -- ==================================================
-Loading.Update(85)
+Loading.Update(92)
 if _G.YOKUDO_TabsManager then
     _G.YOKUDO_TabsManager:SelectTabByName("Info")
 end
 
-Loading.Update(90)
+Loading.Update(95)
 
 -- ==================================================
 -- LOAD ANTI CHEAT (ក្រោយគេបង្អស់)
 -- ==================================================
-Loading.Update(95)
+Loading.Update(98)
 loadstring(GetScript("Features/BypassAntiCheat.lua"))()
 
 Loading.Update(100)
