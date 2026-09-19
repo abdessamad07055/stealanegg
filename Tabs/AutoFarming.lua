@@ -3,118 +3,9 @@
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local AutoFarmingTab, AutoFarmingPage = TabsManager:RegisterTab("Auto Farming", 4, "AUTO_FARMING")
-
--- ==================================================
--- SETUP ASSETS
--- ==================================================
-local Assets = ReplicatedStorage:WaitForChild("Data"):WaitForChild("Assets")
-local Configs = Assets:WaitForChild("Configs")
-local EggModels = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Models"):WaitForChild("Eggs")
-local Container = workspace:WaitForChild("AreaEggSlotsClient")
-
-local MeshIdToCategory = {}
-
-local function BuildMeshIdMap()
-    for _, Config in ipairs(Configs:GetChildren()) do
-        local Success, Module = pcall(function()
-            return require(Config)
-        end)
-        if Success and Module and Module.Egg then
-            local ModelName = Module.Egg.ModelName or Config.Name
-            local EggTemplate = EggModels:FindFirstChild(ModelName)
-            if EggTemplate then
-                for _, descendant in ipairs(EggTemplate:GetDescendants()) do
-                    if descendant:IsA("MeshPart") and descendant.MeshId ~= "" then
-                        MeshIdToCategory[descendant.MeshId] = Config.Name
-                    end
-                    if descendant:IsA("SpecialMesh") and descendant.MeshId ~= "" then
-                        MeshIdToCategory[descendant.MeshId] = Config.Name
-                    end
-                end
-            end
-        end
-    end
-end
-
-BuildMeshIdMap()
-
-local function GetPetData(AssetCategory)
-    local Config = Configs:FindFirstChild(AssetCategory)
-    if not Config then return nil end
-    
-    local Data = {
-        Name = AssetCategory,
-        DisplayName = AssetCategory,
-        EarningRate = 0,
-        Icon = nil
-    }
-    
-    local Success, Module = pcall(function()
-        return require(Config)
-    end)
-    
-    if Success and Module then
-        Data.DisplayName = Module.DisplayName or AssetCategory
-        Data.EarningRate = Module.EarningRate or 0
-        Data.Icon = Module.Icon
-    end
-    
-    return Data
-end
-
-local function FormatMoney(Amount)
-    if type(Amount) ~= "number" then return tostring(Amount) end
-    if Amount >= 1e12 then
-        return string.format("%.2fT", Amount / 1e12)
-    elseif Amount >= 1e9 then
-        return string.format("%.2fB", Amount / 1e9)
-    elseif Amount >= 1e6 then
-        return string.format("%.2fM", Amount / 1e6)
-    elseif Amount >= 1e3 then
-        return string.format("%.2fK", Amount / 1e3)
-    else
-        return tostring(math.floor(Amount))
-    end
-end
-
-local function CalculateRatePerSecond(EarningRate, Scale, Mutations)
-    local PayoutFactor
-    if Scale <= 5 then
-        PayoutFactor = Scale ^ 1.85
-    else
-        PayoutFactor = (Scale / 5) ^ 1.2 * 19.637875755794113
-    end
-    
-    local MutationMultiplier = 1
-    if Mutations and #Mutations > 0 then
-        local Success, MutationsModule = pcall(function()
-            return require(ReplicatedStorage.Shared.Modules.Mutations)
-        end)
-        if Success and MutationsModule then
-            MutationMultiplier = MutationsModule.EarningsFor(Mutations)
-        end
-    end
-    
-    return math.round(EarningRate * PayoutFactor * MutationMultiplier)
-end
-
-local function FindAssetCategory(EggModel)
-    for _, descendant in ipairs(EggModel:GetDescendants()) do
-        if descendant:IsA("MeshPart") and descendant.MeshId ~= "" then
-            local Category = MeshIdToCategory[descendant.MeshId]
-            if Category then return Category end
-        end
-        if descendant:IsA("SpecialMesh") and descendant.MeshId ~= "" then
-            local Category = MeshIdToCategory[descendant.MeshId]
-            if Category then return Category end
-        end
-    end
-    return nil
-end
 
 -- ==================================================
 -- CONTENT
@@ -122,7 +13,7 @@ end
 CreateSectionTitle(AutoFarmingPage, "Auto Farming", 1)
 
 -- ==================================================
--- FEATURE 1: Click Get Egg (កាតតូច)
+-- FEATURE 1: Click Get Egg
 -- ==================================================
 local GetEggBox = Instance.new("Frame")
 GetEggBox.Size = UDim2.new(1, 0, 0, 60)
@@ -215,7 +106,7 @@ local GetEggEnabled = false
 local function UpdateGetEggBox(Icon, Name, Rate, EggId)
     GetEggIcon.Image = Icon or ""
     GetEggName.Text = Name or "No Egg Selected"
-    GetEggRate.Text = "$" .. FormatMoney(Rate or 0) .. "/s"
+    GetEggRate.Text = "$" .. (_G.YOKUDO_AutoFarm and _G.YOKUDO_AutoFarm.FormatMoney(Rate or 0) or tostring(Rate or 0)) .. "/s"
     SelectedEggId = EggId
     
     -- Animation ពេល Update
@@ -255,7 +146,7 @@ GetEggCheckButton.MouseButton1Click:Connect(function()
 end)
 
 -- ==================================================
--- FEATURE 2: Start Check Egg (កាតតូច)
+-- FEATURE 2: Start Check Egg
 -- ==================================================
 local CheckEggHolder = Instance.new("Frame")
 CheckEggHolder.Size = UDim2.new(1, 0, 0, 44)
@@ -330,72 +221,61 @@ CheckEggCheck.Parent = CheckEggCheckButton
 local CheckEggEnabled = false
 local EggScrollFrame = nil
 
-local function CreateEggEntry(EggModel)
-    local AssetCategory = FindAssetCategory(EggModel)
-    if not AssetCategory then return nil end
-    
-    local Data = GetPetData(AssetCategory)
-    if not Data then return nil end
-    
-    local Scale = EggModel:GetAttribute("AssetScale") or 1
-    local Mutations = EggModel:GetAttribute("Mutations") or {}
-    local RealRate = CalculateRatePerSecond(Data.EarningRate, Scale, Mutations)
-    local EggId = EggModel.Name
-    
+local function CreateEggEntry(EggData)
     local Entry = Instance.new("Frame")
     Entry.Size = UDim2.new(1, -8, 0, 44)
     Entry.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
     Entry.BorderSizePixel = 0
     Entry.Parent = EggScrollFrame
-    
+
     local EntryCorner = Instance.new("UICorner")
     EntryCorner.CornerRadius = UDim.new(0, 6)
     EntryCorner.Parent = Entry
-    
+
     local IconFrame = Instance.new("Frame")
     IconFrame.Size = UDim2.new(0, 34, 0, 34)
     IconFrame.Position = UDim2.new(0, 5, 0.5, -17)
     IconFrame.BackgroundColor3 = Color3.fromRGB(40, 42, 58)
     IconFrame.BorderSizePixel = 0
     IconFrame.Parent = Entry
-    
+
     local IconCorner = Instance.new("UICorner")
     IconCorner.CornerRadius = UDim.new(0, 6)
     IconCorner.Parent = IconFrame
-    
+
     local IconImage = Instance.new("ImageLabel")
     IconImage.Size = UDim2.new(1, -4, 1, -4)
     IconImage.Position = UDim2.new(0, 2, 0, 2)
     IconImage.BackgroundTransparency = 1
-    IconImage.Image = Data.Icon or ""
+    IconImage.Image = EggData.Icon or ""
     IconImage.Parent = IconFrame
-    
+
     local ImageCorner = Instance.new("UICorner")
     ImageCorner.CornerRadius = UDim.new(0, 6)
     ImageCorner.Parent = IconImage
-    
+
     local NameLabel = Instance.new("TextLabel")
     NameLabel.Size = UDim2.new(1, -140, 0, 16)
     NameLabel.Position = UDim2.new(0, 48, 0, 6)
     NameLabel.BackgroundTransparency = 1
-    NameLabel.Text = Data.DisplayName
+    NameLabel.Text = EggData.DisplayName
     NameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     NameLabel.TextSize = 11
     NameLabel.TextXAlignment = Enum.TextXAlignment.Left
     NameLabel.Font = Enum.Font.GothamBold
     NameLabel.Parent = Entry
-    
+
     local RateLabel = Instance.new("TextLabel")
     RateLabel.Size = UDim2.new(1, -140, 0, 14)
     RateLabel.Position = UDim2.new(0, 48, 0, 24)
     RateLabel.BackgroundTransparency = 1
-    RateLabel.Text = "$" .. FormatMoney(RealRate) .. "/s"
+    RateLabel.Text = "$" .. (_G.YOKUDO_AutoFarm and _G.YOKUDO_AutoFarm.FormatMoney(EggData.EarningRate) or tostring(EggData.EarningRate)) .. "/s"
     RateLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
     RateLabel.TextSize = 10
     RateLabel.TextXAlignment = Enum.TextXAlignment.Left
     RateLabel.Font = Enum.Font.Gotham
     RateLabel.Parent = Entry
-    
+
     local SelectButton = Instance.new("TextButton")
     SelectButton.Size = UDim2.new(0, 70, 0, 28)
     SelectButton.Position = UDim2.new(1, -75, 0.5, -14)
@@ -407,65 +287,42 @@ local function CreateEggEntry(EggModel)
     SelectButton.Font = Enum.Font.GothamBold
     SelectButton.AutoButtonColor = false
     SelectButton.Parent = Entry
-    
+
     local SelectCorner = Instance.new("UICorner")
     SelectCorner.CornerRadius = UDim.new(0, 6)
     SelectCorner.Parent = SelectButton
-    
+
     local SelectStroke = Instance.new("UIStroke")
     SelectStroke.Color = Color3.fromRGB(140, 125, 240)
     SelectStroke.Thickness = 1.5
     SelectStroke.Transparency = 0.3
     SelectStroke.Parent = SelectButton
-    
+
     SelectButton.MouseButton1Click:Connect(function()
-        -- Load ភ្លាមៗទៅ Feature 1
-        UpdateGetEggBox(Data.Icon, Data.DisplayName, RealRate, EggId)
+        UpdateGetEggBox(EggData.Icon, EggData.DisplayName, EggData.EarningRate, EggData.Id)
+        if _G.YOKUDO_AutoFarm then
+            _G.YOKUDO_AutoFarm.SelectEgg(EggData)
+        end
     end)
-    
-    return Entry
 end
 
 local function RefreshEggList()
     if not CheckEggEnabled then return end
-    
+
     for _, child in ipairs(EggScrollFrame:GetChildren()) do
         if child:IsA("Frame") then
             child:Destroy()
         end
     end
-    
-    local EggDataList = {}
-    
-    for _, child in ipairs(Container:GetChildren()) do
-        if child:IsA("Model") then
-            local AssetCategory = FindAssetCategory(child)
-            if AssetCategory then
-                local Data = GetPetData(AssetCategory)
-                if Data then
-                    local Scale = child:GetAttribute("AssetScale") or 1
-                    local Mutations = child:GetAttribute("Mutations") or {}
-                    local RealRate = CalculateRatePerSecond(Data.EarningRate, Scale, Mutations)
-                    table.insert(EggDataList, {
-                        Model = child,
-                        Data = Data,
-                        Rate = RealRate
-                    })
-                end
-            end
+
+    if _G.YOKUDO_AutoFarm then
+        local Eggs = _G.YOKUDO_AutoFarm.ScanEggs()
+        for _, EggData in ipairs(Eggs) do
+            CreateEggEntry(EggData)
         end
+        EggScrollFrame.CanvasSize = UDim2.new(0, 0, 0, #Eggs * 48)
+        CheckEggCount.Text = "Egg: " .. #Eggs
     end
-    
-    table.sort(EggDataList, function(a, b)
-        return a.Rate > b.Rate
-    end)
-    
-    for _, EggData in ipairs(EggDataList) do
-        CreateEggEntry(EggData.Model)
-    end
-    
-    EggScrollFrame.CanvasSize = UDim2.new(0, 0, 0, #EggDataList * 48)
-    CheckEggCount.Text = "Egg: " .. #EggDataList
 end
 
 local function ToggleCheckEgg()
@@ -475,11 +332,17 @@ local function ToggleCheckEgg()
         CheckEggCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         CheckEggCheckButton.BackgroundTransparency = 0
         CheckEggStroke.Color = Color3.fromRGB(135, 120, 225)
+        if _G.YOKUDO_AutoFarm then
+            _G.YOKUDO_AutoFarm.Enable()
+        end
         RefreshEggList()
     else
         CheckEggCheckButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
         CheckEggCheckButton.BackgroundTransparency = 0.85
         CheckEggStroke.Color = Color3.fromRGB(255, 255, 255)
+        if _G.YOKUDO_AutoFarm then
+            _G.YOKUDO_AutoFarm.Disable()
+        end
         for _, child in ipairs(EggScrollFrame:GetChildren()) do
             if child:IsA("Frame") then
                 child:Destroy()
@@ -511,14 +374,14 @@ EggListLayout.Padding = UDim.new(0, 4)
 EggListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 EggListLayout.Parent = EggScrollFrame
 
-Container.ChildAdded:Connect(function()
+workspace.AreaEggSlotsClient.ChildAdded:Connect(function()
     task.wait(0.2)
     if CheckEggEnabled then
         RefreshEggList()
     end
 end)
 
-Container.ChildRemoved:Connect(function()
+workspace.AreaEggSlotsClient.ChildRemoved:Connect(function()
     task.wait(0.2)
     if CheckEggEnabled then
         RefreshEggList()
