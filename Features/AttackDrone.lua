@@ -1,7 +1,10 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Attack Drone
--- Priority: AugmentedDrone (1) > ReactorDrone (2) > Others (3)
--- Dual Spawn Loop (Wait 2s Each) + Signed X Distance Initial
+-- Point 1 = Reference Center (X-axis)
+-- Signed = PlayerPos.X - POINT_1.X
+-- If Signed > 0 → Fly to Spawn 1 → Start Loop
+-- If Signed <= 0 → Fly to Safe Zone → Wait → Start Loop
+-- Dual Spawn Loop with Wait 2s
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -20,9 +23,11 @@ local FOLLOW_BEHIND_DISTANCE = 3
 local SHORT_TP_DISTANCE = 20
 local SPAWN_POSITION_1 = Vector3.new(2140, 77, -367)
 local SPAWN_POSITION_2 = Vector3.new(5723, 77, -376)
+local SAFE_ZONE = Vector3.new(533, 70, -366)
+local POINT_1 = Vector3.new(559, 70, -370)
+local SAFE_WAIT_TIME = 1
 local SPAWN_WAIT_TIME = 2
 local ARRIVE_TIMEOUT = 15
-local POINT_1 = Vector3.new(559, 70, -370)  -- Reference Center (X-axis)
 local CONTAINER_NAME = "ScrambleLocalVisuals"
 local SEARCH_PREFIXES = { "DroneVisual_", "PersonalDrone_" }
 
@@ -66,6 +71,7 @@ local SavedStats = {
 local StartFollow
 local FlyTPToPosition
 local StartAttackLoop
+local SpawnLoop
 
 -- ==================================================
 -- GET HUMANOID
@@ -535,33 +541,11 @@ end
 
 -- ==================================================
 -- SPAWN LOOP: Fly Spawn 1 → Wait 2s → Check → Spawn 2 → Wait 2s → Check → Loop
--- ប្រើ Signed X Distance ដើម្បីជ្រើស Spawn ដំបូង
--- ប្រើ Flag "Arrived" ដើម្បីរង់ចាំ FlyTPToPosition បញ្ចប់
 -- ==================================================
-local function SpawnLoop()
-    local Hum, Root = GetHumanoid()
-    if not Root then return end
-
-    -- ជ្រើស Spawn ដំបូងដោយប្រើ Signed X Distance ពី Point 1
-    local PlayerToPoint1Signed = math.floor(Root.Position.X - POINT_1.X)
-
-    print("========================================")
-    print("[YOKUDO] Spawn Loop Start (Signed X)")
-    print("  Player.X - Point1.X:      ", PlayerToPoint1Signed)
-    print("========================================")
-
-    if PlayerToPoint1Signed > 0 then
-        CurrentSpawnIndex = 1
-        print("[YOKUDO] → Player in FRONT of Point 1 → Start at Spawn 1")
-    else
-        CurrentSpawnIndex = 2
-        print("[YOKUDO] → Player at/behind Point 1 → Start at Spawn 2")
-    end
-
+function SpawnLoop()
     while AttackDroneEnabled do
         local CurrentSpawn = (CurrentSpawnIndex == 1) and SPAWN_POSITION_1 or SPAWN_POSITION_2
 
-        -- បើមាន Target ស្រាប់ → ឈប់ Loop → Attack
         if CurrentTarget and CurrentTarget.Parent then
             task.wait(0.5)
             continue
@@ -570,7 +554,6 @@ local function SpawnLoop()
         print("[YOKUDO] Flying to Spawn " .. CurrentSpawnIndex)
         Phase = "fly_to_spawn_" .. CurrentSpawnIndex
 
-        -- ប្រើ Flag ដើម្បីរង់ចាំ FlyTPToPosition បញ្ចប់
         local Arrived = false
 
         FlyTPToPosition(CurrentSpawn, function()
@@ -578,7 +561,6 @@ local function SpawnLoop()
             Phase = "locked_spawn_" .. CurrentSpawnIndex
         end)
 
-        -- រង់ចាំរហូតដល់ Fly ដល់ (ឬ Timeout)
         local WaitTime = 0
         while AttackDroneEnabled and not Arrived and WaitTime < ARRIVE_TIMEOUT do
             task.wait(0.1)
@@ -587,33 +569,67 @@ local function SpawnLoop()
 
         if not AttackDroneEnabled then break end
 
-        -- ពេលដល់ Spawn ហើយ → Wait 2s
         print("[YOKUDO] Arrived at Spawn " .. CurrentSpawnIndex .. " → Wait " .. SPAWN_WAIT_TIME .. "s")
         task.wait(SPAWN_WAIT_TIME)
 
         if not AttackDroneEnabled then break end
 
-        -- ពិនិត្យថាមាន Mob ទេ
         local Found = FindBestDrone()
         if Found and Found.Parent then
             print("[YOKUDO] Found Mob at Spawn " .. CurrentSpawnIndex .. " → Attack")
             CurrentTarget = Found
             Phase = "following"
             StartFollow()
-            -- រង់ចាំរហូតដល់ Mob អស់
             while AttackDroneEnabled and CurrentTarget and CurrentTarget.Parent do
                 task.wait(0.5)
             end
-            -- Mob អស់ → ត្រឡប់ទៅ Spawn 1 វិញ
             print("[YOKUDO] Mob Cleared → Return to Spawn 1")
             CurrentSpawnIndex = 1
         else
-            -- គ្មាន Mob → Switch ទៅ Spawn ផ្សេង
             print("[YOKUDO] No Mob at Spawn " .. CurrentSpawnIndex .. " → Switch")
             CurrentSpawnIndex = (CurrentSpawnIndex == 1) and 2 or 1
         end
 
         task.wait(0.2)
+    end
+end
+
+-- ==================================================
+-- INITIAL FLY: Signed X Distance from Point 1
+-- Signed = math.floor(PlayerPos.X - POINT_1.X)
+-- If Signed > 0 → Fly to Spawn 1 → Spawn Loop
+-- If Signed <= 0 → Fly to Safe Zone → Wait → Spawn Loop
+-- ==================================================
+local function InitialFlyAndStartLoop()
+    local Hum, Root = GetHumanoid()
+    if not Root then return end
+
+    local PlayerPos = Root.Position
+    local PlayerToPoint1Signed = math.floor(PlayerPos.X - POINT_1.X)
+
+    print("========================================")
+    print("[YOKUDO] Initial Fly Decision (Signed X)")
+    print("  Player Pos:                       ", PlayerPos)
+    print("  PlayerPos.X:                      ", math.floor(PlayerPos.X))
+    print("  POINT_1.X:                        ", math.floor(POINT_1.X))
+    print("  Signed (Player.X - Point1.X):     ", PlayerToPoint1Signed)
+    print("========================================")
+
+    if PlayerToPoint1Signed > 0 then
+        -- Player នៅមុខ Point 1 → Fly TP ទៅ Spawn 1 → Start Spawn Loop
+        print("[YOKUDO] → Signed > 0 (Player in FRONT) → Fly to Spawn 1")
+        CurrentSpawnIndex = 1
+        SpawnLoop()
+    else
+        -- Player នៅ Point 1 ឬ ក្រោយ → Fly TP ទៅ Safe Zone → Wait → Start Spawn Loop
+        print("[YOKUDO] → Signed <= 0 (Player at/behind) → Fly to Safe first")
+        Phase = "fly_to_safe"
+        FlyTPToPosition(SAFE_ZONE, function()
+            task.wait(SAFE_WAIT_TIME)
+            print("[YOKUDO] Safe Reached → Start Spawn Loop")
+            CurrentSpawnIndex = 1
+            SpawnLoop()
+        end)
     end
 end
 
@@ -670,7 +686,6 @@ function StartAttackLoop()
 
         EnsureStatsAlive()
 
-        -- បើគ្មាន Target ឬ Target បាត់ → រកថ្មី
         if not CurrentTarget or not CurrentTarget.Parent then
             local NewTarget, NewPriority = FindBestDrone()
             if NewTarget then
@@ -682,7 +697,6 @@ function StartAttackLoop()
             return
         end
 
-        -- Dynamic Priority Check
         local CurrentPriority = GetDronePriority(CurrentTarget)
         local BestDrone, BestPriority = FindBestDrone()
 
@@ -695,7 +709,6 @@ function StartAttackLoop()
             return
         end
 
-        -- Attack
         local now = tick()
         if now - LastFire >= ATTACK_INTERVAL then
             LastFire = now
@@ -720,10 +733,10 @@ local function EnableAttackDrone()
     StartAttackLoop()
 
     task.spawn(function()
-        SpawnLoop()
+        InitialFlyAndStartLoop()
     end)
 
-    print("[YOKUDO] Attack Drone: ON (Dual Spawn Loop + Signed X Initial)")
+    print("[YOKUDO] Attack Drone: ON (Signed X + Dual Spawn Loop)")
 end
 
 local function DisableAttackDrone()
@@ -770,7 +783,7 @@ Player.CharacterAdded:Connect(function()
         end
         StartAttackLoop()
         task.spawn(function()
-            SpawnLoop()
+            InitialFlyAndStartLoop()
         end)
     end
 end)
@@ -794,8 +807,9 @@ _G.YOKUDO_AttackDrone = {
     GetSavedStats = function() return SavedStats end,
     SPAWN_POSITION_1 = SPAWN_POSITION_1,
     SPAWN_POSITION_2 = SPAWN_POSITION_2,
+    SAFE_ZONE = SAFE_ZONE,
     POINT_1 = POINT_1,
     TIER_PRIORITY = TIER_PRIORITY
 }
 
-print("✅ AttackDrone Feature Loaded (Dual Spawn Loop + Signed X Initial)")
+print("✅ AttackDrone Feature Loaded (Signed X + Dual Spawn Loop)")
