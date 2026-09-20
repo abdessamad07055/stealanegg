@@ -1,6 +1,6 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Attack Drone
--- Spawn Position + Fly TP + Check Mob + Follow Behind 3 + Short TP 20 + Attack
+-- Spawn Position + Fly TP + Check Mob FARTHEST from Spawn + Attack
 -- Save/Restore WalkSpeed & Jump (Live)
 -- Compatible with Humanoid Replace
 -- ==================================================
@@ -37,7 +37,7 @@ local LastFire = 0
 local TraceSequence = 0
 local IsLocked = false
 local LockCFrame = nil
-local Phase = "idle"  -- idle, fly_to_spawn, check_spawn, following, locked_spawn
+local Phase = "idle"
 
 -- Live Saved Stats
 local SavedStats = {
@@ -47,6 +47,11 @@ local SavedStats = {
     UseJumpPower = nil,
     Humanoid = nil,
 }
+
+-- ==================================================
+-- FORWARD DECLARATIONS
+-- ==================================================
+local StartFollow
 
 -- ==================================================
 -- GET HUMANOID
@@ -84,12 +89,6 @@ local function SaveLiveStats()
     SavedStats.JumpPower = Hum.JumpPower
     SavedStats.JumpHeight = Hum.JumpHeight
     SavedStats.UseJumpPower = Hum.UseJumpPower
-
-    print("[YOKUDO] Saved Live Stats:")
-    print("  WalkSpeed:", SavedStats.WalkSpeed)
-    print("  JumpPower:", SavedStats.JumpPower)
-    print("  JumpHeight:", SavedStats.JumpHeight)
-    print("  UseJumpPower:", SavedStats.UseJumpPower)
 end
 
 -- ==================================================
@@ -111,8 +110,6 @@ local function RestoreLiveStats()
     if SavedStats.UseJumpPower ~= nil then
         pcall(function() Hum.UseJumpPower = SavedStats.UseJumpPower end)
     end
-
-    print("[YOKUDO] Restored Live Stats")
 end
 
 -- ==================================================
@@ -128,7 +125,6 @@ local function EnsureStatsAlive()
         SavedStats.JumpPower = Hum.JumpPower
         SavedStats.JumpHeight = Hum.JumpHeight
         SavedStats.UseJumpPower = Hum.UseJumpPower
-        print("[YOKUDO] Humanoid replaced → Re-saved Live Stats")
     end
 end
 
@@ -231,7 +227,7 @@ local function GetLookVector(Object)
 end
 
 -- ==================================================
--- FIND ALL DRONES
+-- FIND ALL DRONES (តាម prefix)
 -- ==================================================
 local function FindAllDrones()
     local Container = workspace:FindFirstChild(CONTAINER_NAME)
@@ -250,30 +246,28 @@ local function FindAllDrones()
 end
 
 -- ==================================================
--- FIND CLOSEST DRONE
+-- FIND FARTHEST DRONE FROM SPAWN POSITION
+-- (Mob ណាឆ្ងាយពី Spawn ច្រើនជាង → បានថ្លៃជាង)
 -- ==================================================
-local function FindClosestDrone()
-    local Hum, Root = GetHumanoid()
-    if not Root then return nil end
-
+local function FindFarthestDroneFromSpawn()
     local Drones = FindAllDrones()
     if #Drones == 0 then return nil end
 
-    local Closest = nil
-    local ClosestDist = math.huge
+    local Farthest = nil
+    local FarthestDist = -1
 
     for _, Drone in ipairs(Drones) do
         local Pos = GetPosition(Drone)
         if Pos then
-            local Dist = (Pos - Root.Position).Magnitude
-            if Dist < ClosestDist then
-                ClosestDist = Dist
-                Closest = Drone
+            local Dist = (Pos - SPAWN_POSITION).Magnitude
+            if Dist > FarthestDist then
+                FarthestDist = Dist
+                Farthest = Drone
             end
         end
     end
 
-    return Closest
+    return Farthest, FarthestDist
 end
 
 -- ==================================================
@@ -290,7 +284,7 @@ local function GetBehindPosition(Target)
 end
 
 -- ==================================================
--- START LOCK (នៅ Behind Pos ឬ Spawn Position)
+-- START LOCK
 -- ==================================================
 local function StartLock(Position, LookAt)
     LockCFrame = CFrame.new(Position, LookAt or (Position + Vector3.new(0, 0, -1)))
@@ -314,7 +308,6 @@ local function StartLock(Position, LookAt)
         local Hum, Root = GetHumanoid()
         if not Root then return end
 
-        -- បើមាន Target → Update Lock តាម Target
         if CurrentTarget and CurrentTarget.Parent then
             local NewBehind = GetBehindPosition(CurrentTarget)
             local NewTargetPos = GetPosition(CurrentTarget)
@@ -330,103 +323,9 @@ local function StartLock(Position, LookAt)
 end
 
 -- ==================================================
--- FLY TP TO POSITION (ជាមួយ Check Mob ពេលកំពុង Teleport)
--- ==================================================
-local function FlyTPToPosition(Destination, Callback)
-    CleanupMovers()
-
-    local Hum, Root = GetHumanoid()
-    if not Hum or not Root then return end
-    if Hum.Health <= 0 then return end
-
-    Hum.PlatformStand = true
-
-    BodyVelocity = Instance.new("BodyVelocity")
-    BodyVelocity.Name = "YokudoBV"
-    BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    BodyVelocity.P = 1250
-    BodyVelocity.Velocity = Vector3.zero
-    BodyVelocity.Parent = Root
-
-    BodyGyro = Instance.new("BodyGyro")
-    BodyGyro.Name = "YokudoBG"
-    BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    BodyGyro.P = 3000
-    BodyGyro.D = 500
-    BodyGyro.CFrame = Root.CFrame
-    BodyGyro.Parent = Root
-
-    local StartTime = tick()
-    local CheckTimer = 0
-
-    FollowConnection = RunService.Heartbeat:Connect(function()
-        if not AttackDroneEnabled then
-            CleanupMovers()
-            return
-        end
-
-        local Hum2, Root2 = GetHumanoid()
-        if not Hum2 or not Root2 then
-            CleanupMovers()
-            return
-        end
-        if Hum2.Health <= 0 then return end
-
-        if not BodyVelocity or not BodyGyro then
-            CleanupMovers()
-            return
-        end
-
-        -- ✅ ពេលកំពុង Teleport → Check រក Mob ជាប់ៗ
-        CheckTimer = CheckTimer + 1
-        if CheckTimer >= 5 then -- រាល់ ~0.08s
-            CheckTimer = 0
-            local FoundDrone = FindClosestDrone()
-            if FoundDrone then
-                -- ឃើញ Mob → ឈប់ Fly ទៅ Spawn → ចាប់ផ្តើម Follow
-                CleanupMovers()
-                CurrentTarget = FoundDrone
-                Phase = "following"
-                StartFollow()
-                return
-            end
-        end
-
-        local CurrentPos = Root2.Position
-        local Direction = Destination - CurrentPos
-        local TotalDist = Direction.Magnitude
-
-        -- ដល់ Position ហើយ
-        if TotalDist <= 2 then
-            CleanupMovers()
-
-            Root2.CFrame = CFrame.new(Destination)
-            Root2.AssemblyLinearVelocity = Vector3.zero
-            Root2.AssemblyAngularVelocity = Vector3.zero
-
-            Phase = "locked_spawn"
-            StartLock(Destination)
-
-            if Callback then Callback() end
-            return
-        end
-
-        -- Timeout
-        if tick() - StartTime > 15 then
-            CleanupMovers()
-            if Callback then Callback() end
-            return
-        end
-
-        BodyVelocity.Velocity = Direction.Unit * FOLLOW_SPEED
-        BodyGyro.CFrame = CFrame.new(CurrentPos, Destination)
-    end)
-end
-
--- ==================================================
 -- FOLLOW BEHIND (Distance-based + Short TP 20)
 -- ==================================================
-local function StartFollow()
+function StartFollow()
     CleanupMovers()
 
     local Hum, Root = GetHumanoid()
@@ -489,7 +388,7 @@ local function StartFollow()
         local Direction = BehindPos - CurrentPos
         local TotalDist = Direction.Magnitude
 
-        -- ✅ Short TP ពេលនៅ 20m
+        -- Short TP ពេលនៅ 20m
         if TotalDist <= SHORT_TP_DISTANCE then
             CleanupMovers()
 
@@ -503,6 +402,97 @@ local function StartFollow()
 
         BodyVelocity.Velocity = Direction.Unit * FOLLOW_SPEED
         BodyGyro.CFrame = CFrame.new(CurrentPos, TargetPos)
+    end)
+end
+
+-- ==================================================
+-- FLY TP TO POSITION (ជាមួយ Check Mob ពេលកំពុង Teleport)
+-- ==================================================
+local function FlyTPToPosition(Destination, Callback)
+    CleanupMovers()
+
+    local Hum, Root = GetHumanoid()
+    if not Hum or not Root then return end
+    if Hum.Health <= 0 then return end
+
+    Hum.PlatformStand = true
+
+    BodyVelocity = Instance.new("BodyVelocity")
+    BodyVelocity.Name = "YokudoBV"
+    BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    BodyVelocity.P = 1250
+    BodyVelocity.Velocity = Vector3.zero
+    BodyVelocity.Parent = Root
+
+    BodyGyro = Instance.new("BodyGyro")
+    BodyGyro.Name = "YokudoBG"
+    BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    BodyGyro.P = 3000
+    BodyGyro.D = 500
+    BodyGyro.CFrame = Root.CFrame
+    BodyGyro.Parent = Root
+
+    local StartTime = tick()
+    local CheckTimer = 0
+
+    FollowConnection = RunService.Heartbeat:Connect(function()
+        if not AttackDroneEnabled then
+            CleanupMovers()
+            return
+        end
+
+        local Hum2, Root2 = GetHumanoid()
+        if not Hum2 or not Root2 then
+            CleanupMovers()
+            return
+        end
+        if Hum2.Health <= 0 then return end
+
+        if not BodyVelocity or not BodyGyro then
+            CleanupMovers()
+            return
+        end
+
+        -- ពេលកំពុង Teleport → Check រក Mob ដែលឆ្ងាយបំផុតពី Spawn
+        CheckTimer = CheckTimer + 1
+        if CheckTimer >= 5 then
+            CheckTimer = 0
+            local FoundDrone = FindFarthestDroneFromSpawn()
+            if FoundDrone then
+                CleanupMovers()
+                CurrentTarget = FoundDrone
+                Phase = "following"
+                StartFollow()
+                return
+            end
+        end
+
+        local CurrentPos = Root2.Position
+        local Direction = Destination - CurrentPos
+        local TotalDist = Direction.Magnitude
+
+        if TotalDist <= 2 then
+            CleanupMovers()
+
+            Root2.CFrame = CFrame.new(Destination)
+            Root2.AssemblyLinearVelocity = Vector3.zero
+            Root2.AssemblyAngularVelocity = Vector3.zero
+
+            Phase = "locked_spawn"
+            StartLock(Destination)
+
+            if Callback then Callback() end
+            return
+        end
+
+        if tick() - StartTime > 15 then
+            CleanupMovers()
+            if Callback then Callback() end
+            return
+        end
+
+        BodyVelocity.Velocity = Direction.Unit * FOLLOW_SPEED
+        BodyGyro.CFrame = CFrame.new(CurrentPos, Destination)
     end)
 end
 
@@ -559,23 +549,19 @@ local function StartAttackLoop()
 
         EnsureStatsAlive()
 
-        -- បើគ្មាន Target ឬ Target បាត់ → រកថ្មី
+        -- បើគ្មាន Target ឬ Target បាត់ → រកថ្មីដែលឆ្ងាយបំផុតពី Spawn
         if not CurrentTarget or not CurrentTarget.Parent then
-            local NewTarget = FindClosestDrone()
+            local NewTarget = FindFarthestDroneFromSpawn()
             if NewTarget then
                 CurrentTarget = NewTarget
                 Phase = "following"
                 StartFollow()
             else
-                -- គ្មាន Mob → បើ Phase ជា locked_spawn → រង់ចាំនៅ Spawn
                 if Phase == "locked_spawn" then
-                    -- រង់ចាំនៅ Spawn Position
                     return
                 elseif Phase == "fly_to_spawn" or Phase == "check_spawn" then
-                    -- កំពុង Fly ទៅ Spawn → បន្ត
                     return
                 else
-                    -- ចាប់ផ្តើម Fly ទៅ Spawn
                     Phase = "fly_to_spawn"
                     FlyTPToPosition(SPAWN_POSITION, function()
                         Phase = "locked_spawn"
@@ -610,14 +596,13 @@ local function EnableAttackDrone()
     Phase = "fly_to_spawn"
     StartAttackLoop()
 
-    -- Fly TP ទៅ Spawn Position ភ្លាម
     task.spawn(function()
         FlyTPToPosition(SPAWN_POSITION, function()
             Phase = "locked_spawn"
         end)
     end)
 
-    print("[YOKUDO] Attack Drone: ON (Spawn Position + Follow Behind 3 + Short TP 20)")
+    print("[YOKUDO] Attack Drone: ON (Farthest from Spawn)")
 end
 
 local function DisableAttackDrone()
@@ -680,10 +665,10 @@ _G.YOKUDO_AttackDrone = {
     IsEnabled = function() return AttackDroneEnabled end,
     GetPhase = function() return Phase end,
     FindAllDrones = FindAllDrones,
-    FindClosestDrone = FindClosestDrone,
+    FindFarthestDroneFromSpawn = FindFarthestDroneFromSpawn,
     GetBatSwingRemote = GetBatSwingRemote,
     GetSavedStats = function() return SavedStats end,
     SPAWN_POSITION = SPAWN_POSITION
 }
 
-print("✅ AttackDrone Feature Loaded (Spawn Position + Follow Behind 3 + Short TP 20)")
+print("✅ AttackDrone Feature Loaded (Farthest from Spawn)")
