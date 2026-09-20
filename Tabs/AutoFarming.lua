@@ -213,6 +213,7 @@ CheckEggCheck.Parent = CheckEggCheckButton
 
 local CheckEggEnabled = false
 local EggScrollFrame = nil
+local EggEntries = {} -- Cache Entries
 
 local function CreateEggEntry(EggData)
     local Entry = Instance.new("Frame")
@@ -297,21 +298,27 @@ local function CreateEggEntry(EggData)
             _G.YOKUDO_AutoFarm.SelectEgg(EggData)
         end
     end)
+
+    return Entry
 end
 
 local function RefreshEggList()
     if not CheckEggEnabled then return end
     if not _G.YOKUDO_AutoFarm then return end
 
+    -- Destroy entries ចាស់
     for _, child in ipairs(EggScrollFrame:GetChildren()) do
         if child:IsA("Frame") then
             child:Destroy()
         end
     end
 
+    EggEntries = {}
+
     local Eggs = _G.YOKUDO_AutoFarm.ScanEggs()
     for _, EggData in ipairs(Eggs) do
-        CreateEggEntry(EggData)
+        local Entry = CreateEggEntry(EggData)
+        table.insert(EggEntries, Entry)
     end
     EggScrollFrame.CanvasSize = UDim2.new(0, 0, 0, #Eggs * 48)
     CheckEggCount.Text = "Egg: " .. #Eggs
@@ -381,7 +388,7 @@ workspace.AreaEggSlotsClient.ChildRemoved:Connect(function()
 end)
 
 task.spawn(function()
-    while task.wait(1) do
+    while task.wait(3) do -- ប្តូរពី 1 ទៅ 3 វិនាទី
         if CheckEggEnabled then
             RefreshEggList()
         end
