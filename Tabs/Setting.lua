@@ -261,7 +261,7 @@ GodModeStroke.Transparency = 0.3
 GodModeStroke.Parent = GodModeButton
 
 -- ==================================================
--- BUTTON ANIMATION (ច្បាស់)
+-- BUTTON ANIMATION (God Mode)
 -- ==================================================
 GodModeButton.MouseEnter:Connect(function()
     TweenService:Create(GodModeButton, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -276,17 +276,17 @@ GodModeButton.MouseLeave:Connect(function()
 end)
 
 -- ==================================================
--- NOTIFICATION FUNCTION (Glass + Left + 5s)
+-- NOTIFICATION FUNCTION
 -- ==================================================
 local function ShowNotification(Text)
     local PlayerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
-    
+
     local NotifyGui = Instance.new("ScreenGui")
     NotifyGui.Name = "YokudoNotify"
     NotifyGui.ResetOnSpawn = false
     NotifyGui.DisplayOrder = 999
     NotifyGui.Parent = PlayerGui
-    
+
     local NotifyFrame = Instance.new("Frame")
     NotifyFrame.Size = UDim2.new(0, 220, 0, 50)
     NotifyFrame.Position = UDim2.new(0, -250, 0, 20)
@@ -294,17 +294,17 @@ local function ShowNotification(Text)
     NotifyFrame.BackgroundTransparency = 0.85
     NotifyFrame.BorderSizePixel = 0
     NotifyFrame.Parent = NotifyGui
-    
+
     local NotifyCorner = Instance.new("UICorner")
     NotifyCorner.CornerRadius = UDim.new(0, 10)
     NotifyCorner.Parent = NotifyFrame
-    
+
     local NotifyStroke = Instance.new("UIStroke")
     NotifyStroke.Color = Color3.fromRGB(255, 255, 255)
     NotifyStroke.Thickness = 1
     NotifyStroke.Transparency = 0.7
     NotifyStroke.Parent = NotifyFrame
-    
+
     local NotifyText = Instance.new("TextLabel")
     NotifyText.Size = UDim2.new(1, -20, 1, 0)
     NotifyText.Position = UDim2.new(0, 10, 0, 0)
@@ -316,16 +316,13 @@ local function ShowNotification(Text)
     NotifyText.TextYAlignment = Enum.TextYAlignment.Center
     NotifyText.Font = Enum.Font.GothamBold
     NotifyText.Parent = NotifyFrame
-    
-    -- Slide In (ពីឆ្វេង)
+
     TweenService:Create(NotifyFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         Position = UDim2.new(0, 20, 0, 20)
     }):Play()
-    
-    -- លូត 5s
+
     task.wait(5)
-    
-    -- Slide Out (ត្រឡប់ទៅឆ្វេង)
+
     TweenService:Create(NotifyFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
         Position = UDim2.new(0, -250, 0, 20),
         BackgroundTransparency = 1
@@ -336,7 +333,7 @@ local function ShowNotification(Text)
     TweenService:Create(NotifyStroke, TweenInfo.new(0.3), {
         Transparency = 1
     }):Play()
-    
+
     task.wait(0.3)
     NotifyGui:Destroy()
 end
@@ -345,7 +342,6 @@ end
 -- CLICK → ENABLE GOD MODE + NOTIFY
 -- ==================================================
 GodModeButton.MouseButton1Down:Connect(function()
-    -- Button Scale Down
     TweenService:Create(GodModeButton, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         Size = UDim2.new(0, 62, 0, 23),
         BackgroundColor3 = Color3.fromRGB(85, 70, 170)
@@ -353,7 +349,6 @@ GodModeButton.MouseButton1Down:Connect(function()
 end)
 
 GodModeButton.MouseButton1Up:Connect(function()
-    -- Button Scale Up
     TweenService:Create(GodModeButton, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         Size = UDim2.new(0, 70, 0, 26),
         BackgroundColor3 = Color3.fromRGB(105, 90, 190)
@@ -361,13 +356,126 @@ GodModeButton.MouseButton1Up:Connect(function()
 end)
 
 GodModeButton.MouseButton1Click:Connect(function()
-    -- Enable God Mode
     if _G.YOKUDO_GodMode then
         _G.YOKUDO_GodMode.Enable()
     end
-    
-    -- Show Notification
     ShowNotification("God Mode Start")
+end)
+
+-- ==================================================
+-- FEATURE 4: MANUAL FAST CLICK (BUTTON)
+-- ==================================================
+local FastClickHolder = Instance.new("Frame")
+FastClickHolder.Size = UDim2.new(1, 0, 0, 52)
+FastClickHolder.BackgroundTransparency = 1
+FastClickHolder.LayoutOrder = 5
+FastClickHolder.Parent = SettingPage
+
+local FastClickLabel = Instance.new("TextLabel")
+FastClickLabel.Size = UDim2.new(1, -90, 0, 20)
+FastClickLabel.Position = UDim2.new(0, 0, 0, 2)
+FastClickLabel.BackgroundTransparency = 1
+FastClickLabel.Text = "Manual Fast Click"
+FastClickLabel.TextColor3 = Color3.fromRGB(220, 220, 235)
+FastClickLabel.TextSize = 13
+FastClickLabel.TextXAlignment = Enum.TextXAlignment.Left
+FastClickLabel.TextYAlignment = Enum.TextYAlignment.Center
+FastClickLabel.Font = Enum.Font.GothamBold
+FastClickLabel.Parent = FastClickHolder
+
+local FastClickTitle = Instance.new("TextLabel")
+FastClickTitle.Size = UDim2.new(1, -90, 0, 18)
+FastClickTitle.Position = UDim2.new(0, 0, 0, 24)
+FastClickTitle.BackgroundTransparency = 1
+FastClickTitle.Text = "Enable Click Egg Fast by hand"
+FastClickTitle.TextColor3 = Color3.fromRGB(150, 150, 170)
+FastClickTitle.TextSize = 10
+FastClickTitle.TextXAlignment = Enum.TextXAlignment.Left
+FastClickTitle.Font = Enum.Font.Gotham
+FastClickTitle.Parent = FastClickHolder
+
+local FastClickButton = Instance.new("TextButton")
+FastClickButton.Size = UDim2.new(0, 70, 0, 26)
+FastClickButton.Position = UDim2.new(1, -70, 0.5, -13)
+FastClickButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+FastClickButton.BorderSizePixel = 0
+FastClickButton.Text = "Click"
+FastClickButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+FastClickButton.TextSize = 12
+FastClickButton.Font = Enum.Font.GothamBold
+FastClickButton.AutoButtonColor = false
+FastClickButton.Parent = FastClickHolder
+
+local FastClickCorner = Instance.new("UICorner")
+FastClickCorner.CornerRadius = UDim.new(0, 6)
+FastClickCorner.Parent = FastClickButton
+
+local FastClickStroke = Instance.new("UIStroke")
+FastClickStroke.Color = Color3.fromRGB(140, 125, 240)
+FastClickStroke.Thickness = 1.5
+FastClickStroke.Transparency = 0.3
+FastClickStroke.Parent = FastClickButton
+
+-- ==================================================
+-- BUTTON ANIMATION (Fast Click)
+-- ==================================================
+FastClickButton.MouseEnter:Connect(function()
+    TweenService:Create(FastClickButton, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        BackgroundColor3 = Color3.fromRGB(125, 110, 220)
+    }):Play()
+end)
+
+FastClickButton.MouseLeave:Connect(function()
+    TweenService:Create(FastClickButton, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+    }):Play()
+end)
+
+FastClickButton.MouseButton1Down:Connect(function()
+    TweenService:Create(FastClickButton, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, 62, 0, 23),
+        BackgroundColor3 = Color3.fromRGB(85, 70, 170)
+    }):Play()
+end)
+
+FastClickButton.MouseButton1Up:Connect(function()
+    TweenService:Create(FastClickButton, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, 70, 0, 26),
+        BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+    }):Play()
+end)
+
+-- ==================================================
+-- CLICK → TOGGLE FAST CLICK + NOTIFY
+-- ==================================================
+FastClickButton.MouseButton1Click:Connect(function()
+    if not _G.YOKUDO_ManualFastClick then
+        warn("[YOKUDO] ManualFastClick feature not loaded")
+        ShowNotification("Manual Fast Click Not Loaded")
+        return
+    end
+
+    if _G.YOKUDO_ManualFastClick.IsEnabled() then
+        _G.YOKUDO_ManualFastClick.Disable()
+        ShowNotification("Manual Fast Click Stop")
+    else
+        _G.YOKUDO_ManualFastClick.Enable()
+        ShowNotification("Manual Fast Click Start")
+    end
+end)
+
+-- ==================================================
+-- SYNC STATE ON LOAD
+-- ==================================================
+task.spawn(function()
+    task.wait(0.5)
+    if _G.YOKUDO_ManualFastClick then
+        if _G.YOKUDO_ManualFastClick.IsEnabled() then
+            FastClickButton.Text = "Stop"
+        else
+            FastClickButton.Text = "Click"
+        end
+    end
 end)
 
 print("✅ Setting Tab Loaded")
