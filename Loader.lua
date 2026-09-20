@@ -197,6 +197,9 @@ loadstring(GetScript("Features/AutoAttack.lua"))()
 Loading.Update(57)
 loadstring(GetScript("Features/AttackDrone.lua"))()
 
+Loading.Update(58)
+loadstring(GetScript("Features/ManualFastClick.lua"))()
+
 -- ==================================================
 -- LOAD TABS
 -- ==================================================
