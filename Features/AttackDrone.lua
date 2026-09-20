@@ -1,9 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Attack Drone
--- Compare Distance: Player → Safe Zone vs Player → Mob Spawn
--- Choose Closest → Fly TP → Attack Closest Mob to Spawn
--- Save/Restore WalkSpeed & Jump (Live)
--- Compatible with Humanoid Replace
+-- Priority: AugmentedDrone (1) > ReactorDrone (2) > Others (3)
+-- Dual Spawn Loop (2s Lock Each) with Arrived Flag
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -20,11 +18,19 @@ local ATTACK_INTERVAL = 0.02
 local FOLLOW_SPEED = 300
 local FOLLOW_BEHIND_DISTANCE = 3
 local SHORT_TP_DISTANCE = 20
-local SPAWN_POSITION = Vector3.new(2971, 74, -374)
-local SAFE_ZONE = Vector3.new(533, 70, -366)
-local SAFE_WAIT_TIME = 1
+local SPAWN_POSITION_1 = Vector3.new(2140, 77, -367)
+local SPAWN_POSITION_2 = Vector3.new(5723, 77, -376)
+local SPAWN_LOCK_TIME = 2
+local ARRIVE_TIMEOUT = 15
 local CONTAINER_NAME = "ScrambleLocalVisuals"
 local SEARCH_PREFIXES = { "DroneVisual_", "PersonalDrone_" }
+
+-- Tier Priority
+local TIER_PRIORITY = {
+    ["AugmentedDrone"] = 1,
+    ["ReactorDrone"] = 2,
+}
+local DEFAULT_PRIORITY = 3
 
 -- ==================================================
 -- STATE
@@ -36,11 +42,13 @@ local LockConnection = nil
 local BodyVelocity = nil
 local BodyGyro = nil
 local CurrentTarget = nil
+local CurrentTargetPriority = nil
 local LastFire = 0
 local TraceSequence = 0
 local IsLocked = false
 local LockCFrame = nil
 local Phase = "idle"
+local CurrentSpawnIndex = 1
 
 -- Live Saved Stats
 local SavedStats = {
@@ -251,27 +259,53 @@ local function FindAllDrones()
 end
 
 -- ==================================================
--- FIND CLOSEST DRONE TO SPAWN POSITION
+-- GET DRONE TIER
 -- ==================================================
-local function FindClosestDroneToSpawn()
+local function GetDroneTier(Drone)
+    if not Drone then return nil end
+    local Tier = nil
+    pcall(function()
+        Tier = Drone:GetAttribute("ScrambleTier")
+    end)
+    return Tier
+end
+
+-- ==================================================
+-- GET DRONE PRIORITY
+-- ==================================================
+local function GetDronePriority(Drone)
+    local Tier = GetDroneTier(Drone)
+    if not Tier then return DEFAULT_PRIORITY end
+    return TIER_PRIORITY[Tier] or DEFAULT_PRIORITY
+end
+
+-- ==================================================
+-- FIND BEST DRONE (Priority + Distance to Current Spawn)
+-- ==================================================
+local function FindBestDrone()
     local Drones = FindAllDrones()
     if #Drones == 0 then return nil end
 
-    local Closest = nil
-    local ClosestDist = math.huge
+    local CurrentSpawn = (CurrentSpawnIndex == 1) and SPAWN_POSITION_1 or SPAWN_POSITION_2
+
+    local Best = nil
+    local BestPriority = math.huge
+    local BestDist = math.huge
 
     for _, Drone in ipairs(Drones) do
+        local Priority = GetDronePriority(Drone)
         local Pos = GetPosition(Drone)
         if Pos then
-            local Dist = (Pos - SPAWN_POSITION).Magnitude
-            if Dist < ClosestDist then
-                ClosestDist = Dist
-                Closest = Drone
+            local Dist = math.floor((Pos - CurrentSpawn).Magnitude)
+            if Priority < BestPriority or (Priority == BestPriority and Dist < BestDist) then
+                BestPriority = Priority
+                BestDist = Dist
+                Best = Drone
             end
         end
     end
 
-    return Closest, ClosestDist
+    return Best, BestPriority, BestDist
 end
 
 -- ==================================================
@@ -390,7 +424,7 @@ function StartFollow()
 
         local CurrentPos = Root2.Position
         local Direction = BehindPos - CurrentPos
-        local TotalDist = Direction.Magnitude
+        local TotalDist = math.floor(Direction.Magnitude)
 
         if TotalDist <= SHORT_TP_DISTANCE then
             CleanupMovers()
@@ -456,11 +490,10 @@ function FlyTPToPosition(Destination, Callback)
             return
         end
 
-        -- ពេលកំពុង Teleport → Check រក Mob ជិត Spawn
         CheckTimer = CheckTimer + 1
         if CheckTimer >= 5 then
             CheckTimer = 0
-            local FoundDrone = FindClosestDroneToSpawn()
+            local FoundDrone = FindBestDrone()
             if FoundDrone then
                 CleanupMovers()
                 CurrentTarget = FoundDrone
@@ -472,7 +505,7 @@ function FlyTPToPosition(Destination, Callback)
 
         local CurrentPos = Root2.Position
         local Direction = Destination - CurrentPos
-        local TotalDist = Direction.Magnitude
+        local TotalDist = math.floor(Direction.Magnitude)
 
         if TotalDist <= 2 then
             CleanupMovers()
@@ -488,7 +521,7 @@ function FlyTPToPosition(Destination, Callback)
             return
         end
 
-        if tick() - StartTime > 15 then
+        if tick() - StartTime > ARRIVE_TIMEOUT then
             CleanupMovers()
             if Callback then Callback() end
             return
@@ -500,43 +533,67 @@ function FlyTPToPosition(Destination, Callback)
 end
 
 -- ==================================================
--- INITIAL FLY: Compare Distance Player → Safe vs Player → Spawn
--- Choose Closest → Fly TP
+-- SPAWN LOOP: Fly to Spawn 1 → Arrive → Lock 2s → Check
+--              → Fly to Spawn 2 → Arrive → Lock 2s → Check → Loop
+-- ប្រើ Flag "Arrived" ដើម្បីរង់ចាំ FlyTPToPosition បញ្ចប់
 -- ==================================================
-local function InitialFly()
-    local Hum, Root = GetHumanoid()
-    if not Root then return end
+local function SpawnLoop()
+    while AttackDroneEnabled do
+        local CurrentSpawn = (CurrentSpawnIndex == 1) and SPAWN_POSITION_1 or SPAWN_POSITION_2
 
-    local PlayerPos = Root.Position
-    local DistToSafe = (PlayerPos - SAFE_ZONE).Magnitude
-    local DistToSpawn = (PlayerPos - SPAWN_POSITION).Magnitude
+        -- បើមាន Target ស្រាប់ → ឈប់ Loop → Attack
+        if CurrentTarget and CurrentTarget.Parent then
+            task.wait(0.5)
+            continue
+        end
 
-    print("========================================")
-    print("[YOKUDO] Initial Fly Decision")
-    print("  Player Pos:", PlayerPos)
-    print("  Dist to Safe Zone:", DistToSafe)
-    print("  Dist to Mob Spawn:", DistToSpawn)
-    print("========================================")
+        print("[YOKUDO] Flying to Spawn " .. CurrentSpawnIndex)
+        Phase = "fly_to_spawn_" .. CurrentSpawnIndex
 
-    if DistToSpawn <= DistToSafe then
-        -- ជិត Mob Spawn ជាង → Fly TP ទៅ Mob Spawn ភ្លាម
-        print("[YOKUDO] → Closer to SPAWN → Fly to Spawn")
-        Phase = "fly_to_spawn"
-        FlyTPToPosition(SPAWN_POSITION, function()
-            Phase = "locked_spawn"
+        -- ✅ ប្រើ Flag ដើម្បីរង់ចាំ FlyTPToPosition បញ្ចប់
+        local Arrived = false
+
+        FlyTPToPosition(CurrentSpawn, function()
+            Arrived = true
+            Phase = "locked_spawn_" .. CurrentSpawnIndex
         end)
-    else
-        -- ជិត Safe Zone ជាង → Fly TP ទៅ Safe Zone មុន → រង់ចាំ → Fly TP ទៅ Spawn
-        print("[YOKUDO] → Closer to SAFE → Fly to Safe first")
-        Phase = "fly_to_safe"
-        FlyTPToPosition(SAFE_ZONE, function()
-            task.wait(SAFE_WAIT_TIME)
-            print("[YOKUDO] Safe Reached → Fly to Spawn")
-            Phase = "fly_to_spawn"
-            FlyTPToPosition(SPAWN_POSITION, function()
-                Phase = "locked_spawn"
-            end)
-        end)
+
+        -- រង់ចាំរហូតដល់ Fly ដល់ (ឬ Timeout)
+        local WaitTime = 0
+        while AttackDroneEnabled and not Arrived and WaitTime < ARRIVE_TIMEOUT do
+            task.wait(0.1)
+            WaitTime = WaitTime + 0.1
+        end
+
+        if not AttackDroneEnabled then break end
+
+        -- ពេលដល់ Spawn ហើយ → Lock 2s
+        print("[YOKUDO] Arrived at Spawn " .. CurrentSpawnIndex .. " → Lock " .. SPAWN_LOCK_TIME .. "s")
+        task.wait(SPAWN_LOCK_TIME)
+
+        if not AttackDroneEnabled then break end
+
+        -- ពិនិត្យថាមាន Mob ទេ
+        local Found = FindBestDrone()
+        if Found and Found.Parent then
+            print("[YOKUDO] Found Mob at Spawn " .. CurrentSpawnIndex .. " → Attack")
+            CurrentTarget = Found
+            Phase = "following"
+            StartFollow()
+            -- រង់ចាំរហូតដល់ Mob អស់
+            while AttackDroneEnabled and CurrentTarget and CurrentTarget.Parent do
+                task.wait(0.5)
+            end
+            -- Mob អស់ → ត្រឡប់ទៅ Spawn 1 វិញ
+            print("[YOKUDO] Mob Cleared → Return to Spawn 1")
+            CurrentSpawnIndex = 1
+        else
+            -- គ្មាន Mob → Switch ទៅ Spawn ផ្សេង
+            print("[YOKUDO] No Mob at Spawn " .. CurrentSpawnIndex .. " → Switch")
+            CurrentSpawnIndex = (CurrentSpawnIndex == 1) and 2 or 1
+        end
+
+        task.wait(0.2)
     end
 end
 
@@ -564,7 +621,7 @@ local function FireAtDrone(Drone)
     local DronePos = GetPosition(Drone)
     if not DronePos then return end
 
-    local Dist = (DronePos - Root.Position).Magnitude
+    local Dist = math.floor((DronePos - Root.Position).Magnitude)
     if Dist > ATTACK_RANGE then return end
 
     TraceSequence = TraceSequence + 1
@@ -576,7 +633,7 @@ local function FireAtDrone(Drone)
 end
 
 -- ==================================================
--- MAIN ATTACK LOOP
+-- MAIN ATTACK LOOP (Dynamic Priority Switching)
 -- ==================================================
 function StartAttackLoop()
     if AttackConnection then
@@ -593,29 +650,32 @@ function StartAttackLoop()
 
         EnsureStatsAlive()
 
-        -- បើគ្មាន Target ឬ Target បាត់ → រកថ្មីដែលជិត Spawn
+        -- បើគ្មាន Target ឬ Target បាត់ → រកថ្មី
         if not CurrentTarget or not CurrentTarget.Parent then
-            local NewTarget = FindClosestDroneToSpawn()
+            local NewTarget, NewPriority = FindBestDrone()
             if NewTarget then
                 CurrentTarget = NewTarget
+                CurrentTargetPriority = NewPriority
                 Phase = "following"
                 StartFollow()
-            else
-                if Phase == "locked_spawn" then
-                    return
-                elseif Phase == "fly_to_safe" or Phase == "fly_to_spawn" then
-                    return
-                else
-                    Phase = "fly_to_spawn"
-                    FlyTPToPosition(SPAWN_POSITION, function()
-                        Phase = "locked_spawn"
-                    end)
-                end
             end
             return
         end
 
-        -- មាន Target → Attack
+        -- Dynamic Priority Check
+        local CurrentPriority = GetDronePriority(CurrentTarget)
+        local BestDrone, BestPriority = FindBestDrone()
+
+        if BestDrone and BestPriority < CurrentPriority then
+            print("[YOKUDO] Higher Priority Detected! Switching...")
+            CurrentTarget = BestDrone
+            CurrentTargetPriority = BestPriority
+            Phase = "following"
+            StartFollow()
+            return
+        end
+
+        -- Attack
         local now = tick()
         if now - LastFire >= ATTACK_INTERVAL then
             LastFire = now
@@ -640,10 +700,10 @@ local function EnableAttackDrone()
     StartAttackLoop()
 
     task.spawn(function()
-        InitialFly()
+        SpawnLoop()
     end)
 
-    print("[YOKUDO] Attack Drone: ON (Compare Distance)")
+    print("[YOKUDO] Attack Drone: ON (Dual Spawn Loop + Arrived Flag)")
 end
 
 local function DisableAttackDrone()
@@ -657,7 +717,9 @@ local function DisableAttackDrone()
 
     CleanupMovers()
     CurrentTarget = nil
+    CurrentTargetPriority = nil
     Phase = "idle"
+    CurrentSpawnIndex = 1
 
     RestoreLiveStats()
 
@@ -688,7 +750,7 @@ Player.CharacterAdded:Connect(function()
         end
         StartAttackLoop()
         task.spawn(function()
-            InitialFly()
+            SpawnLoop()
         end)
     end
 end)
@@ -702,12 +764,16 @@ _G.YOKUDO_AttackDrone = {
     Toggle = ToggleAttackDrone,
     IsEnabled = function() return AttackDroneEnabled end,
     GetPhase = function() return Phase end,
+    GetCurrentTarget = function() return CurrentTarget end,
+    GetCurrentPriority = function() return CurrentTargetPriority end,
     FindAllDrones = FindAllDrones,
-    FindClosestDroneToSpawn = FindClosestDroneToSpawn,
+    FindBestDrone = FindBestDrone,
+    GetDronePriority = GetDronePriority,
     GetBatSwingRemote = GetBatSwingRemote,
     GetSavedStats = function() return SavedStats end,
-    SPAWN_POSITION = SPAWN_POSITION,
-    SAFE_ZONE = SAFE_ZONE
+    SPAWN_POSITION_1 = SPAWN_POSITION_1,
+    SPAWN_POSITION_2 = SPAWN_POSITION_2,
+    TIER_PRIORITY = TIER_PRIORITY
 }
 
-print("✅ AttackDrone Feature Loaded (Compare Distance Safe vs Spawn)")
+print("✅ AttackDrone Feature Loaded (Dual Spawn Loop + Arrived Flag)")
