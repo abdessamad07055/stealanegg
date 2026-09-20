@@ -3,35 +3,15 @@
 -- Auto Remove Children in workspace.__DEBRIS
 -- ==================================================
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Player = Players.LocalPlayer
-
--- ==================================================
--- VARIABLES
--- ==================================================
 local AntiTrapEnabled = false
-local Connection = nil
-local DebrisFolder = nil
-
--- ==================================================
--- GET DEBRIS FOLDER
--- ==================================================
-local function GetDebrisFolder()
-    if DebrisFolder and DebrisFolder.Parent then
-        return DebrisFolder
-    end
-    DebrisFolder = workspace:FindFirstChild("__DEBRIS")
-    return DebrisFolder
-end
 
 -- ==================================================
 -- REMOVE CHILDREN
 -- ==================================================
 local function RemoveDebrisChildren()
-    local Folder = GetDebrisFolder()
+    local Folder = workspace:FindFirstChild("__DEBRIS")
     if not Folder then return end
-    
+
     for _, child in ipairs(Folder:GetChildren()) do
         pcall(function()
             child:Destroy()
@@ -40,20 +20,17 @@ local function RemoveDebrisChildren()
 end
 
 -- ==================================================
--- ANTI TRAP FUNCTION
+-- ENABLE
 -- ==================================================
 local function EnableAntiTrap()
+    if AntiTrapEnabled then return end
     AntiTrapEnabled = true
-    
+
     -- លុបភ្លាមម្តង
     RemoveDebrisChildren()
-    
-    -- លុបរាល់ 1 វិនាទី
-    if Connection then
-        Connection:Disconnect()
-    end
-    
-    Connection = task.spawn(function()
+
+    -- Loop ធម្មតា រាល់ 1 វិនាទី
+    task.spawn(function()
         while AntiTrapEnabled do
             task.wait(1)
             if AntiTrapEnabled then
@@ -61,23 +38,20 @@ local function EnableAntiTrap()
             end
         end
     end)
-    
+
     print("[YOKUDO] Anti Trap: ON")
 end
 
+-- ==================================================
+-- DISABLE
+-- ==================================================
 local function DisableAntiTrap()
     AntiTrapEnabled = false
-    
-    if Connection then
-        Connection:Disconnect()
-        Connection = nil
-    end
-    
     print("[YOKUDO] Anti Trap: OFF")
 end
 
 -- ==================================================
--- TOGGLE FUNCTION
+-- TOGGLE
 -- ==================================================
 local function ToggleAntiTrap()
     if AntiTrapEnabled then
