@@ -1,6 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Attack Drone
--- Spawn Position + Fly TP + Check Mob FARTHEST from Spawn + Attack
+-- Check Player Position → Fly to Safe Zone or Mob Spawn → Attack
+-- Farthest Mob from Spawn (Higher Price)
 -- Save/Restore WalkSpeed & Jump (Live)
 -- Compatible with Humanoid Replace
 -- ==================================================
@@ -20,6 +21,9 @@ local FOLLOW_SPEED = 300
 local FOLLOW_BEHIND_DISTANCE = 3
 local SHORT_TP_DISTANCE = 20
 local SPAWN_POSITION = Vector3.new(2255, 75, -370)
+local SAFE_ZONE = Vector3.new(533, 70, -366)
+local DISTANCE_THRESHOLD = 100
+local SAFE_WAIT_TIME = 1
 local CONTAINER_NAME = "ScrambleLocalVisuals"
 local SEARCH_PREFIXES = { "DroneVisual_", "PersonalDrone_" }
 
@@ -52,6 +56,8 @@ local SavedStats = {
 -- FORWARD DECLARATIONS
 -- ==================================================
 local StartFollow
+local FlyTPToPosition
+local StartAttackLoop
 
 -- ==================================================
 -- GET HUMANOID
@@ -247,7 +253,6 @@ end
 
 -- ==================================================
 -- FIND FARTHEST DRONE FROM SPAWN POSITION
--- (Mob ណាឆ្ងាយពី Spawn ច្រើនជាង → បានថ្លៃជាង)
 -- ==================================================
 local function FindFarthestDroneFromSpawn()
     local Drones = FindAllDrones()
@@ -388,7 +393,6 @@ function StartFollow()
         local Direction = BehindPos - CurrentPos
         local TotalDist = Direction.Magnitude
 
-        -- Short TP ពេលនៅ 20m
         if TotalDist <= SHORT_TP_DISTANCE then
             CleanupMovers()
 
@@ -406,9 +410,9 @@ function StartFollow()
 end
 
 -- ==================================================
--- FLY TP TO POSITION (ជាមួយ Check Mob ពេលកំពុង Teleport)
+-- FLY TP TO POSITION
 -- ==================================================
-local function FlyTPToPosition(Destination, Callback)
+function FlyTPToPosition(Destination, Callback)
     CleanupMovers()
 
     local Hum, Root = GetHumanoid()
@@ -453,7 +457,7 @@ local function FlyTPToPosition(Destination, Callback)
             return
         end
 
-        -- ពេលកំពុង Teleport → Check រក Mob ដែលឆ្ងាយបំផុតពី Spawn
+        -- ពេលកំពុង Teleport → Check រក Mob
         CheckTimer = CheckTimer + 1
         if CheckTimer >= 5 then
             CheckTimer = 0
@@ -497,7 +501,57 @@ local function FlyTPToPosition(Destination, Callback)
 end
 
 -- ==================================================
--- FIRE REMOTE AT DRONE (តែ Mob ប៉ុណ្ណោះ)
+-- INITIAL FLY BASED ON PLAYER POSITION
+-- ==================================================
+local function InitialFly()
+    local Hum, Root = GetHumanoid()
+    if not Root then return end
+
+    local PlayerPos = Root.Position
+    local DistToSafe = (PlayerPos - SAFE_ZONE).Magnitude
+    local DistToSpawn = (PlayerPos - SPAWN_POSITION).Magnitude
+
+    print("[YOKUDO] Player Pos:", PlayerPos)
+    print("[YOKUDO] Dist to Safe:", DistToSafe)
+    print("[YOKUDO] Dist to Spawn:", DistToSpawn)
+
+    if DistToSpawn < DISTANCE_THRESHOLD then
+        -- នៅជិត Mob Spawn → Fly TP ទៅ Mob Spawn ភ្លាម
+        print("[YOKUDO] Near Spawn → Fly to Spawn")
+        Phase = "fly_to_spawn"
+        FlyTPToPosition(SPAWN_POSITION, function()
+            Phase = "locked_spawn"
+        end)
+    elseif DistToSafe < DISTANCE_THRESHOLD then
+        -- នៅលើ Safe Zone → Fly TP ទៅ Safe Zone មុន
+        print("[YOKUDO] Near Safe → Fly to Safe")
+        Phase = "fly_to_safe"
+        FlyTPToPosition(SAFE_ZONE, function()
+            -- ពេលដល់ Safe Zone → រង់ចាំ → Fly ទៅ Spawn
+            task.wait(SAFE_WAIT_TIME)
+            print("[YOKUDO] Safe Reached → Fly to Spawn")
+            Phase = "fly_to_spawn"
+            FlyTPToPosition(SPAWN_POSITION, function()
+                Phase = "locked_spawn"
+            end)
+        end)
+    else
+        -- នៅឆ្ងាយពីទាំងពីរ → Fly TP ទៅ Safe Zone មុន
+        print("[YOKUDO] Far from both → Fly to Safe first")
+        Phase = "fly_to_safe"
+        FlyTPToPosition(SAFE_ZONE, function()
+            task.wait(SAFE_WAIT_TIME)
+            print("[YOKUDO] Safe Reached → Fly to Spawn")
+            Phase = "fly_to_spawn"
+            FlyTPToPosition(SPAWN_POSITION, function()
+                Phase = "locked_spawn"
+            end)
+        end)
+    end
+end
+
+-- ==================================================
+-- FIRE REMOTE AT DRONE
 -- ==================================================
 local function FireAtDrone(Drone)
     if not Drone or not Drone.Parent then return end
@@ -534,7 +588,7 @@ end
 -- ==================================================
 -- MAIN ATTACK LOOP
 -- ==================================================
-local function StartAttackLoop()
+function StartAttackLoop()
     if AttackConnection then
         AttackConnection:Disconnect()
         AttackConnection = nil
@@ -549,7 +603,7 @@ local function StartAttackLoop()
 
         EnsureStatsAlive()
 
-        -- បើគ្មាន Target ឬ Target បាត់ → រកថ្មីដែលឆ្ងាយបំផុតពី Spawn
+        -- បើគ្មាន Target ឬ Target បាត់ → រកថ្មី
         if not CurrentTarget or not CurrentTarget.Parent then
             local NewTarget = FindFarthestDroneFromSpawn()
             if NewTarget then
@@ -557,9 +611,10 @@ local function StartAttackLoop()
                 Phase = "following"
                 StartFollow()
             else
+                -- គ្មាន Mob → Lock នៅ Spawn រង់ចាំ
                 if Phase == "locked_spawn" then
                     return
-                elseif Phase == "fly_to_spawn" or Phase == "check_spawn" then
+                elseif Phase == "fly_to_safe" or Phase == "fly_to_spawn" then
                     return
                 else
                     Phase = "fly_to_spawn"
@@ -593,16 +648,14 @@ local function EnableAttackDrone()
         _G.YOKUDO_AutoAttack.EnableAutoEquip()
     end
 
-    Phase = "fly_to_spawn"
     StartAttackLoop()
 
+    -- Initial Fly based on Player Position
     task.spawn(function()
-        FlyTPToPosition(SPAWN_POSITION, function()
-            Phase = "locked_spawn"
-        end)
+        InitialFly()
     end)
 
-    print("[YOKUDO] Attack Drone: ON (Farthest from Spawn)")
+    print("[YOKUDO] Attack Drone: ON (Smart Position Check)")
 end
 
 local function DisableAttackDrone()
@@ -645,12 +698,9 @@ Player.CharacterAdded:Connect(function()
         if _G.YOKUDO_AutoAttack then
             _G.YOKUDO_AutoAttack.EnableAutoEquip()
         end
-        Phase = "fly_to_spawn"
         StartAttackLoop()
         task.spawn(function()
-            FlyTPToPosition(SPAWN_POSITION, function()
-                Phase = "locked_spawn"
-            end)
+            InitialFly()
         end)
     end
 end)
@@ -668,7 +718,8 @@ _G.YOKUDO_AttackDrone = {
     FindFarthestDroneFromSpawn = FindFarthestDroneFromSpawn,
     GetBatSwingRemote = GetBatSwingRemote,
     GetSavedStats = function() return SavedStats end,
-    SPAWN_POSITION = SPAWN_POSITION
+    SPAWN_POSITION = SPAWN_POSITION,
+    SAFE_ZONE = SAFE_ZONE
 }
 
-print("✅ AttackDrone Feature Loaded (Farthest from Spawn)")
+print("✅ AttackDrone Feature Loaded (Smart Position Check + Farthest from Spawn)")
