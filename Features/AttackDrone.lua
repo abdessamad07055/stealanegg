@@ -1,7 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Attack Drone
 -- Check Player Position → Fly to Safe Zone or Mob Spawn → Attack
--- Farthest Mob from Spawn (Higher Price)
+-- Closest Mob to Spawn
 -- Save/Restore WalkSpeed & Jump (Live)
 -- Compatible with Humanoid Replace
 -- ==================================================
@@ -20,7 +20,7 @@ local ATTACK_INTERVAL = 0.02
 local FOLLOW_SPEED = 300
 local FOLLOW_BEHIND_DISTANCE = 3
 local SHORT_TP_DISTANCE = 20
-local SPAWN_POSITION = Vector3.new(2255, 75, -370)
+local SPAWN_POSITION = Vector3.new(2971, 74, -374)
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 local DISTANCE_THRESHOLD = 100
 local SAFE_WAIT_TIME = 1
@@ -252,27 +252,28 @@ local function FindAllDrones()
 end
 
 -- ==================================================
--- FIND FARTHEST DRONE FROM SPAWN POSITION
+-- FIND CLOSEST DRONE TO SPAWN POSITION
+-- (Mob ណាជិត Spawn → ជ្រើសវា)
 -- ==================================================
-local function FindFarthestDroneFromSpawn()
+local function FindClosestDroneToSpawn()
     local Drones = FindAllDrones()
     if #Drones == 0 then return nil end
 
-    local Farthest = nil
-    local FarthestDist = -1
+    local Closest = nil
+    local ClosestDist = math.huge
 
     for _, Drone in ipairs(Drones) do
         local Pos = GetPosition(Drone)
         if Pos then
             local Dist = (Pos - SPAWN_POSITION).Magnitude
-            if Dist > FarthestDist then
-                FarthestDist = Dist
-                Farthest = Drone
+            if Dist < ClosestDist then
+                ClosestDist = Dist
+                Closest = Drone
             end
         end
     end
 
-    return Farthest, FarthestDist
+    return Closest, ClosestDist
 end
 
 -- ==================================================
@@ -457,11 +458,11 @@ function FlyTPToPosition(Destination, Callback)
             return
         end
 
-        -- ពេលកំពុង Teleport → Check រក Mob
+        -- ពេលកំពុង Teleport → Check រក Mob ជិត Spawn
         CheckTimer = CheckTimer + 1
         if CheckTimer >= 5 then
             CheckTimer = 0
-            local FoundDrone = FindFarthestDroneFromSpawn()
+            local FoundDrone = FindClosestDroneToSpawn()
             if FoundDrone then
                 CleanupMovers()
                 CurrentTarget = FoundDrone
@@ -527,7 +528,6 @@ local function InitialFly()
         print("[YOKUDO] Near Safe → Fly to Safe")
         Phase = "fly_to_safe"
         FlyTPToPosition(SAFE_ZONE, function()
-            -- ពេលដល់ Safe Zone → រង់ចាំ → Fly ទៅ Spawn
             task.wait(SAFE_WAIT_TIME)
             print("[YOKUDO] Safe Reached → Fly to Spawn")
             Phase = "fly_to_spawn"
@@ -603,15 +603,14 @@ function StartAttackLoop()
 
         EnsureStatsAlive()
 
-        -- បើគ្មាន Target ឬ Target បាត់ → រកថ្មី
+        -- បើគ្មាន Target ឬ Target បាត់ → រកថ្មីដែលជិត Spawn
         if not CurrentTarget or not CurrentTarget.Parent then
-            local NewTarget = FindFarthestDroneFromSpawn()
+            local NewTarget = FindClosestDroneToSpawn()
             if NewTarget then
                 CurrentTarget = NewTarget
                 Phase = "following"
                 StartFollow()
             else
-                -- គ្មាន Mob → Lock នៅ Spawn រង់ចាំ
                 if Phase == "locked_spawn" then
                     return
                 elseif Phase == "fly_to_safe" or Phase == "fly_to_spawn" then
@@ -650,12 +649,11 @@ local function EnableAttackDrone()
 
     StartAttackLoop()
 
-    -- Initial Fly based on Player Position
     task.spawn(function()
         InitialFly()
     end)
 
-    print("[YOKUDO] Attack Drone: ON (Smart Position Check)")
+    print("[YOKUDO] Attack Drone: ON (Smart Position + Closest to Spawn)")
 end
 
 local function DisableAttackDrone()
@@ -715,11 +713,11 @@ _G.YOKUDO_AttackDrone = {
     IsEnabled = function() return AttackDroneEnabled end,
     GetPhase = function() return Phase end,
     FindAllDrones = FindAllDrones,
-    FindFarthestDroneFromSpawn = FindFarthestDroneFromSpawn,
+    FindClosestDroneToSpawn = FindClosestDroneToSpawn,
     GetBatSwingRemote = GetBatSwingRemote,
     GetSavedStats = function() return SavedStats end,
     SPAWN_POSITION = SPAWN_POSITION,
     SAFE_ZONE = SAFE_ZONE
 }
 
-print("✅ AttackDrone Feature Loaded (Smart Position Check + Farthest from Spawn)")
+print("✅ AttackDrone Feature Loaded (Closest Mob to Spawn)")
