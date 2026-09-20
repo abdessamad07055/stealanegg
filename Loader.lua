@@ -4,7 +4,7 @@
 
 local BASE_URL = "https://raw.githubusercontent.com/betdoyvaka/stealanegg/main/"
 
-_G.YOKUDO_EnablePrint = false
+_G.YOKUDO_EnablePrint = true
 
 local oldPrint = print
 print = function(...)
