@@ -194,6 +194,9 @@ loadstring(GetScript("Features/AutoFarm.lua"))()
 Loading.Update(55)
 loadstring(GetScript("Features/AutoAttack.lua"))()
 
+Loading.Update(57)
+loadstring(GetScript("Features/AttackDrone.lua"))()
+
 -- ==================================================
 -- LOAD TABS
 -- ==================================================
