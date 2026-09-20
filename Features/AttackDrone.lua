@@ -1,7 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Attack Drone
--- Check Player Position → Fly to Safe Zone or Mob Spawn → Attack
--- Closest Mob to Spawn
+-- Compare Distance: Player → Safe Zone vs Player → Mob Spawn
+-- Choose Closest → Fly TP → Attack Closest Mob to Spawn
 -- Save/Restore WalkSpeed & Jump (Live)
 -- Compatible with Humanoid Replace
 -- ==================================================
@@ -22,7 +22,6 @@ local FOLLOW_BEHIND_DISTANCE = 3
 local SHORT_TP_DISTANCE = 20
 local SPAWN_POSITION = Vector3.new(2971, 74, -374)
 local SAFE_ZONE = Vector3.new(533, 70, -366)
-local DISTANCE_THRESHOLD = 100
 local SAFE_WAIT_TIME = 1
 local CONTAINER_NAME = "ScrambleLocalVisuals"
 local SEARCH_PREFIXES = { "DroneVisual_", "PersonalDrone_" }
@@ -253,7 +252,6 @@ end
 
 -- ==================================================
 -- FIND CLOSEST DRONE TO SPAWN POSITION
--- (Mob ណាជិត Spawn → ជ្រើសវា)
 -- ==================================================
 local function FindClosestDroneToSpawn()
     local Drones = FindAllDrones()
@@ -502,7 +500,8 @@ function FlyTPToPosition(Destination, Callback)
 end
 
 -- ==================================================
--- INITIAL FLY BASED ON PLAYER POSITION
+-- INITIAL FLY: Compare Distance Player → Safe vs Player → Spawn
+-- Choose Closest → Fly TP
 -- ==================================================
 local function InitialFly()
     local Hum, Root = GetHumanoid()
@@ -512,32 +511,23 @@ local function InitialFly()
     local DistToSafe = (PlayerPos - SAFE_ZONE).Magnitude
     local DistToSpawn = (PlayerPos - SPAWN_POSITION).Magnitude
 
-    print("[YOKUDO] Player Pos:", PlayerPos)
-    print("[YOKUDO] Dist to Safe:", DistToSafe)
-    print("[YOKUDO] Dist to Spawn:", DistToSpawn)
+    print("========================================")
+    print("[YOKUDO] Initial Fly Decision")
+    print("  Player Pos:", PlayerPos)
+    print("  Dist to Safe Zone:", DistToSafe)
+    print("  Dist to Mob Spawn:", DistToSpawn)
+    print("========================================")
 
-    if DistToSpawn < DISTANCE_THRESHOLD then
-        -- នៅជិត Mob Spawn → Fly TP ទៅ Mob Spawn ភ្លាម
-        print("[YOKUDO] Near Spawn → Fly to Spawn")
+    if DistToSpawn <= DistToSafe then
+        -- ជិត Mob Spawn ជាង → Fly TP ទៅ Mob Spawn ភ្លាម
+        print("[YOKUDO] → Closer to SPAWN → Fly to Spawn")
         Phase = "fly_to_spawn"
         FlyTPToPosition(SPAWN_POSITION, function()
             Phase = "locked_spawn"
         end)
-    elseif DistToSafe < DISTANCE_THRESHOLD then
-        -- នៅលើ Safe Zone → Fly TP ទៅ Safe Zone មុន
-        print("[YOKUDO] Near Safe → Fly to Safe")
-        Phase = "fly_to_safe"
-        FlyTPToPosition(SAFE_ZONE, function()
-            task.wait(SAFE_WAIT_TIME)
-            print("[YOKUDO] Safe Reached → Fly to Spawn")
-            Phase = "fly_to_spawn"
-            FlyTPToPosition(SPAWN_POSITION, function()
-                Phase = "locked_spawn"
-            end)
-        end)
     else
-        -- នៅឆ្ងាយពីទាំងពីរ → Fly TP ទៅ Safe Zone មុន
-        print("[YOKUDO] Far from both → Fly to Safe first")
+        -- ជិត Safe Zone ជាង → Fly TP ទៅ Safe Zone មុន → រង់ចាំ → Fly TP ទៅ Spawn
+        print("[YOKUDO] → Closer to SAFE → Fly to Safe first")
         Phase = "fly_to_safe"
         FlyTPToPosition(SAFE_ZONE, function()
             task.wait(SAFE_WAIT_TIME)
@@ -653,7 +643,7 @@ local function EnableAttackDrone()
         InitialFly()
     end)
 
-    print("[YOKUDO] Attack Drone: ON (Smart Position + Closest to Spawn)")
+    print("[YOKUDO] Attack Drone: ON (Compare Distance)")
 end
 
 local function DisableAttackDrone()
@@ -720,4 +710,4 @@ _G.YOKUDO_AttackDrone = {
     SAFE_ZONE = SAFE_ZONE
 }
 
-print("✅ AttackDrone Feature Loaded (Closest Mob to Spawn)")
+print("✅ AttackDrone Feature Loaded (Compare Distance Safe vs Spawn)")
