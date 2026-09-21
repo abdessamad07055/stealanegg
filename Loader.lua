@@ -185,7 +185,6 @@ loadstring(GetScript("Features/AntiTrap.lua"))()
 Loading.Update(40)
 loadstring(GetScript("Features/GodMode.lua"))()
 
--- ✅ TeleportSystem (1 File - Dual Mode)
 Loading.Update(45)
 loadstring(GetScript("Features/TeleportSystem.lua"))()
 
@@ -201,10 +200,14 @@ loadstring(GetScript("Features/AttackDrone.lua"))()
 Loading.Update(59)
 loadstring(GetScript("Features/ManualFastClick.lua"))()
 
+-- ✅ ConfigSystem (Load After Features, Before Tabs)
+Loading.Update(60)
+loadstring(GetScript("Features/ConfigSystem.lua"))()
+
 --==================================================
 -- LOAD TABS
 --==================================================
-Loading.Update(60)
+Loading.Update(62)
 loadstring(GetScript("Tabs/Info.lua"))()
 
 Loading.Update(65)
