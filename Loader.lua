@@ -1,10 +1,10 @@
--- ==================================================
+--==================================================
 -- YOKUDO HUB | STEAL AN EGG | Loader
--- ==================================================
+--==================================================
 
 local BASE_URL = "https://raw.githubusercontent.com/betdoyvaka/stealanegg/main/"
 
-_G.YOKUDO_EnablePrint = false
+_G.YOKUDO_EnablePrint = true
 
 local oldPrint = print
 print = function(...)
@@ -15,9 +15,9 @@ end
 
 print("🔵 Loading YOKUDO HUB...")
 
--- ==================================================
+--==================================================
 -- CACHE SYSTEM
--- ==================================================
+--==================================================
 _G.YOKUDO_Cache = _G.YOKUDO_Cache or {}
 
 local function GetScript(path)
@@ -30,9 +30,9 @@ local function GetScript(path)
     return script
 end
 
--- ==================================================
+--==================================================
 -- WAIT UNTIL GAME IS LOADED
--- ==================================================
+--==================================================
 repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer
 
 local Player = game.Players.LocalPlayer
@@ -40,9 +40,9 @@ local CoreGui = game:GetService("CoreGui")
 
 print("✅ Game loaded, Player: " .. Player.Name)
 
--- ==================================================
+--==================================================
 -- CREATE LOADING SCREEN
--- ==================================================
+--==================================================
 local function CreateLoadingScreen()
     local LoadingGui = Instance.new("ScreenGui")
     LoadingGui.Name = "LoadingScreen"
@@ -149,15 +149,15 @@ local function CreateLoadingScreen()
     }
 end
 
--- ==================================================
+--==================================================
 -- CREATE LOADING SCREEN
--- ==================================================
+--==================================================
 local Loading = CreateLoadingScreen()
 Loading.Update(5)
 
--- ==================================================
+--==================================================
 -- LOAD CORE FILES
--- ==================================================
+--==================================================
 Loading.Update(10)
 loadstring(GetScript("Config.lua"))()
 
@@ -167,15 +167,15 @@ loadstring(GetScript("UI.lua"))()
 Loading.Update(20)
 loadstring(GetScript("Components.lua"))()
 
--- ==================================================
+--==================================================
 -- LOAD TABS MANAGER
--- ==================================================
+--==================================================
 Loading.Update(25)
 loadstring(GetScript("Tabs/Init.lua"))()
 
--- ==================================================
--- LOAD FEATURES (មុន Tabs ដែលត្រូវការ _G)
--- ==================================================
+--==================================================
+-- LOAD FEATURES
+--==================================================
 Loading.Update(30)
 loadstring(GetScript("Features/WalkSpeed.lua"))()
 
@@ -185,6 +185,7 @@ loadstring(GetScript("Features/AntiTrap.lua"))()
 Loading.Update(40)
 loadstring(GetScript("Features/GodMode.lua"))()
 
+-- ✅ TeleportSystem (1 File - Dual Mode)
 Loading.Update(45)
 loadstring(GetScript("Features/TeleportSystem.lua"))()
 
@@ -197,12 +198,12 @@ loadstring(GetScript("Features/AutoAttack.lua"))()
 Loading.Update(57)
 loadstring(GetScript("Features/AttackDrone.lua"))()
 
-Loading.Update(58)
+Loading.Update(59)
 loadstring(GetScript("Features/ManualFastClick.lua"))()
 
--- ==================================================
+--==================================================
 -- LOAD TABS
--- ==================================================
+--==================================================
 Loading.Update(60)
 loadstring(GetScript("Tabs/Info.lua"))()
 
@@ -224,9 +225,9 @@ loadstring(GetScript("Tabs/HopServer.lua"))()
 Loading.Update(90)
 loadstring(GetScript("Tabs/Setting.lua"))()
 
--- ==================================================
+--==================================================
 -- SELECT DEFAULT TAB
--- ==================================================
+--==================================================
 Loading.Update(92)
 if _G.YOKUDO_TabsManager then
     _G.YOKUDO_TabsManager:SelectTabByName("Info")
@@ -234,9 +235,9 @@ end
 
 Loading.Update(95)
 
--- ==================================================
--- LOAD ANTI CHEAT (ក្រោយគេបង្អស់)
--- ==================================================
+--==================================================
+-- LOAD ANTI CHEAT
+--==================================================
 Loading.Update(98)
 loadstring(GetScript("Features/BypassAntiCheat.lua"))()
 
