@@ -1,7 +1,7 @@
--- ==================================================
+--==================================================
 -- YOKUDO HUB | FEATURE | Auto Farm
 -- Check Egg + Display Card + Select + Send to Teleport
--- ==================================================
+--==================================================
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -9,23 +9,23 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Player = Players.LocalPlayer
 local Container = workspace:WaitForChild("AreaEggSlotsClient")
 
--- ==================================================
+--==================================================
 -- VARIABLES
--- ==================================================
+--==================================================
 local AutoFarmEnabled = false
 local SelectedEgg = nil
 local EggList = {}
 
--- ==================================================
+--==================================================
 -- ASSETS
--- ==================================================
+--==================================================
 local Assets = ReplicatedStorage:WaitForChild("Data"):WaitForChild("Assets")
 local Configs = Assets:WaitForChild("Configs")
 local EggModels = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Models"):WaitForChild("Eggs")
 
--- ==================================================
+--==================================================
 -- MESHID MAP
--- ==================================================
+--==================================================
 local MeshIdToCategory = {}
 
 local function BuildMeshIdMap()
@@ -52,9 +52,9 @@ end
 
 BuildMeshIdMap()
 
--- ==================================================
+--==================================================
 -- GET PET DATA
--- ==================================================
+--==================================================
 local function GetPetData(AssetCategory)
     local Config = Configs:FindFirstChild(AssetCategory)
     if not Config then return nil end
@@ -79,9 +79,9 @@ local function GetPetData(AssetCategory)
     return Data
 end
 
--- ==================================================
+--==================================================
 -- FORMAT MONEY
--- ==================================================
+--==================================================
 local function FormatMoney(Amount)
     if type(Amount) ~= "number" then return tostring(Amount) end
     if Amount >= 1e12 then
@@ -97,9 +97,9 @@ local function FormatMoney(Amount)
     end
 end
 
--- ==================================================
+--==================================================
 -- CALCULATE REAL RATE
--- ==================================================
+--==================================================
 local function CalculateRatePerSecond(EarningRate, Scale, Mutations)
     local PayoutFactor
     if Scale <= 5 then
@@ -121,9 +121,9 @@ local function CalculateRatePerSecond(EarningRate, Scale, Mutations)
     return math.round(EarningRate * PayoutFactor * MutationMultiplier)
 end
 
--- ==================================================
+--==================================================
 -- FIND ASSET CATEGORY
--- ==================================================
+--==================================================
 local function FindAssetCategory(EggModel)
     for _, descendant in ipairs(EggModel:GetDescendants()) do
         if descendant:IsA("MeshPart") and descendant.MeshId ~= "" then
@@ -138,9 +138,9 @@ local function FindAssetCategory(EggModel)
     return nil
 end
 
--- ==================================================
+--==================================================
 -- SCAN EGGS
--- ==================================================
+--==================================================
 local function ScanEggs()
     EggList = {}
     
@@ -174,9 +174,9 @@ local function ScanEggs()
     return EggList
 end
 
--- ==================================================
+--==================================================
 -- ENABLE / DISABLE
--- ==================================================
+--==================================================
 local function EnableAutoFarm()
     AutoFarmEnabled = true
     print("[YOKUDO] Auto Farm: ON")
@@ -187,21 +187,53 @@ local function DisableAutoFarm()
     print("[YOKUDO] Auto Farm: OFF")
 end
 
--- ==================================================
--- SELECT EGG
--- ==================================================
+--==================================================
+-- SELECT EGG (Save only, NO Teleport)
+--==================================================
 local function SelectEgg(EggData)
     SelectedEgg = EggData
     print("[YOKUDO] Selected Egg: " .. EggData.DisplayName .. " ($" .. FormatMoney(EggData.EarningRate) .. "/s)")
-    
+
+    -- ✅ Just save EggData — no teleport yet
+end
+
+--==================================================
+-- START TELEPORT (Called on Start button)
+--==================================================
+local function StartTeleport()
+    if not SelectedEgg then
+        warn("[YOKUDO] No Egg Selected")
+        return
+    end
+
+    -- ✅ Read Method and Speed from Setting dropdown
+    local Method = _G.YOKUDO_SelectedMethod or "TeleportFly"
+    local Speed = _G.YOKUDO_TeleportSpeed or 300
+
+    print("[YOKUDO] Start Teleport | Method: " .. Method .. " | Speed: " .. tostring(Speed) .. " | Target: " .. SelectedEgg.Id)
+
+    -- ✅ Call TeleportSystem (single file with 2 options)
     if _G.YOKUDO_TeleportSystem then
-        _G.YOKUDO_TeleportSystem.SetTargetId(EggData.Id)
+        _G.YOKUDO_TeleportSystem.SetMethod(Method)
+        _G.YOKUDO_TeleportSystem.SetSpeed(Speed)
+        _G.YOKUDO_TeleportSystem.SetTargetId(SelectedEgg.Id)
+        _G.YOKUDO_TeleportSystem.Enable()
     end
 end
 
--- ==================================================
+--==================================================
+-- STOP TELEPORT (Called on Stop button)
+--==================================================
+local function StopTeleport()
+    if _G.YOKUDO_TeleportSystem then
+        _G.YOKUDO_TeleportSystem.Disable()
+    end
+    print("[YOKUDO] Stop Teleport")
+end
+
+--==================================================
 -- EXPORT
--- ==================================================
+--==================================================
 _G.YOKUDO_AutoFarm = {
     Enable = EnableAutoFarm,
     Disable = DisableAutoFarm,
@@ -209,6 +241,8 @@ _G.YOKUDO_AutoFarm = {
     ScanEggs = ScanEggs,
     GetEggList = function() return EggList end,
     SelectEgg = SelectEgg,
+    StartTeleport = StartTeleport,
+    StopTeleport = StopTeleport,
     GetSelectedEgg = function() return SelectedEgg end,
     FormatMoney = FormatMoney
 }
