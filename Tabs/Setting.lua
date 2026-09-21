@@ -1,31 +1,259 @@
--- ==================================================
+--==================================================
 -- YOKUDO HUB | TAB | Setting
--- ==================================================
+--==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
 local TweenService = game:GetService("TweenService")
 
 local SettingTab, SettingPage = TabsManager:RegisterTab("Setting", 7, "SETTING")
 
--- ==================================================
+--==================================================
 -- SETTING CONTENT
--- ==================================================
+--==================================================
 CreateSectionTitle(SettingPage, "Settings", 1)
 
--- ==================================================
--- FEATURE 1: WALK SPEED
--- ==================================================
+--==================================================
+-- FEATURE 1: SELECT METHOD TELEPORT (DROPDOWN)
+--==================================================
+local MethodHolder = Instance.new("Frame")
+MethodHolder.Size = UDim2.new(1, 0, 0, 52)
+MethodHolder.BackgroundTransparency = 1
+MethodHolder.LayoutOrder = 2
+MethodHolder.ZIndex = 100
+MethodHolder.Parent = SettingPage
+
+local MethodLabel = Instance.new("TextLabel")
+MethodLabel.Size = UDim2.new(1, -120, 0, 20)
+MethodLabel.Position = UDim2.new(0, 0, 0, 2)
+MethodLabel.BackgroundTransparency = 1
+MethodLabel.Text = "Select Method Teleport"
+MethodLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+MethodLabel.TextSize = 13
+MethodLabel.TextXAlignment = Enum.TextXAlignment.Left
+MethodLabel.TextYAlignment = Enum.TextYAlignment.Center
+MethodLabel.Font = Enum.Font.GothamBold
+MethodLabel.ZIndex = 101
+MethodLabel.Parent = MethodHolder
+
+local MethodTitle = Instance.new("TextLabel")
+MethodTitle.Size = UDim2.new(1, -120, 0, 18)
+MethodTitle.Position = UDim2.new(0, 0, 0, 24)
+MethodTitle.BackgroundTransparency = 1
+MethodTitle.Text = "TeleportFly or InstantTeleport"
+MethodTitle.TextColor3 = Color3.fromRGB(180, 180, 180)
+MethodTitle.TextSize = 10
+MethodTitle.TextXAlignment = Enum.TextXAlignment.Left
+MethodTitle.Font = Enum.Font.Gotham
+MethodTitle.ZIndex = 101
+MethodTitle.Parent = MethodHolder
+
+local DropdownBtn = Instance.new("TextButton")
+DropdownBtn.Size = UDim2.new(0, 110, 0, 28)
+DropdownBtn.Position = UDim2.new(1, -110, 0.5, -14)
+DropdownBtn.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
+DropdownBtn.BorderSizePixel = 0
+DropdownBtn.Text = "TeleportFly ▼"
+DropdownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+DropdownBtn.TextSize = 11
+DropdownBtn.Font = Enum.Font.GothamBold
+DropdownBtn.AutoButtonColor = false
+DropdownBtn.ZIndex = 101
+DropdownBtn.Parent = MethodHolder
+
+local DropdownCorner = Instance.new("UICorner")
+DropdownCorner.CornerRadius = UDim.new(0, 6)
+DropdownCorner.Parent = DropdownBtn
+
+local DropdownStroke = Instance.new("UIStroke")
+DropdownStroke.Color = Color3.fromRGB(200, 200, 220)
+DropdownStroke.Thickness = 1
+DropdownStroke.Transparency = 0.3
+DropdownStroke.Parent = DropdownBtn
+
+local DropdownList = Instance.new("Frame")
+DropdownList.Size = UDim2.new(0, 110, 0, 60)
+DropdownList.Position = UDim2.new(1, -110, 1, 2)
+DropdownList.BackgroundColor3 = Color3.fromRGB(25, 26, 38)
+DropdownList.BorderSizePixel = 0
+DropdownList.Visible = false
+DropdownList.ZIndex = 200
+DropdownList.Parent = MethodHolder
+
+local ListCorner = Instance.new("UICorner")
+ListCorner.CornerRadius = UDim.new(0, 6)
+ListCorner.Parent = DropdownList
+
+local ListStroke = Instance.new("UIStroke")
+ListStroke.Color = Color3.fromRGB(200, 200, 220)
+ListStroke.Thickness = 1
+ListStroke.Transparency = 0.3
+ListStroke.Parent = DropdownList
+
+local ListLayout = Instance.new("UIListLayout")
+ListLayout.Padding = UDim.new(0, 2)
+ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ListLayout.Parent = DropdownList
+
+local ListPadding = Instance.new("UIPadding")
+ListPadding.PaddingTop = UDim.new(0, 4)
+ListPadding.PaddingBottom = UDim.new(0, 4)
+ListPadding.PaddingLeft = UDim.new(0, 4)
+ListPadding.PaddingRight = UDim.new(0, 4)
+ListPadding.Parent = DropdownList
+
+local SelectedMethod = "TeleportFly"
+
+local function CreateOption(Name, Order)
+    local Option = Instance.new("TextButton")
+    Option.Size = UDim2.new(1, 0, 0, 22)
+    Option.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
+    Option.BorderSizePixel = 0
+    Option.Text = Name
+    Option.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Option.TextSize = 11
+    Option.Font = Enum.Font.GothamMedium
+    Option.AutoButtonColor = false
+    Option.LayoutOrder = Order
+    Option.ZIndex = 201
+    Option.Parent = DropdownList
+
+    local OptionCorner = Instance.new("UICorner")
+    OptionCorner.CornerRadius = UDim.new(0, 4)
+    OptionCorner.Parent = Option
+
+    Option.MouseButton1Click:Connect(function()
+        SelectedMethod = Name
+        DropdownBtn.Text = Name .. " ▼"
+        DropdownList.Visible = false
+
+        -- ✅ ONLY SAVE METHOD — DO NOT ENABLE / DISABLE
+        _G.YOKUDO_SelectedMethod = Name
+
+        print("[YOKUDO] Method Teleport Selected: " .. Name)
+    end)
+
+    Option.MouseEnter:Connect(function()
+        TweenService:Create(Option, TweenInfo.new(0.1), {
+            BackgroundColor3 = Color3.fromRGB(45, 46, 60)
+        }):Play()
+    end)
+
+    Option.MouseLeave:Connect(function()
+        TweenService:Create(Option, TweenInfo.new(0.1), {
+            BackgroundColor3 = Color3.fromRGB(30, 31, 45)
+        }):Play()
+    end)
+end
+
+CreateOption("TeleportFly", 1)
+CreateOption("InstantTeleport", 2)
+
+DropdownBtn.MouseButton1Click:Connect(function()
+    DropdownList.Visible = not DropdownList.Visible
+end)
+
+_G.YOKUDO_SelectedMethod = "TeleportFly"
+
+--==================================================
+-- FEATURE 2: TELEPORT SPEED (TEXTBOX)
+--==================================================
+local SpeedHolder = Instance.new("Frame")
+SpeedHolder.Size = UDim2.new(1, 0, 0, 52)
+SpeedHolder.BackgroundTransparency = 1
+SpeedHolder.LayoutOrder = 3
+SpeedHolder.ZIndex = 1
+SpeedHolder.Parent = SettingPage
+
+local SpeedLabel = Instance.new("TextLabel")
+SpeedLabel.Size = UDim2.new(1, -120, 0, 20)
+SpeedLabel.Position = UDim2.new(0, 0, 0, 2)
+SpeedLabel.BackgroundTransparency = 1
+SpeedLabel.Text = "Teleport Speed"
+SpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedLabel.TextSize = 13
+SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
+SpeedLabel.TextYAlignment = Enum.TextYAlignment.Center
+SpeedLabel.Font = Enum.Font.GothamBold
+SpeedLabel.ZIndex = 2
+SpeedLabel.Parent = SpeedHolder
+
+local SpeedTitle = Instance.new("TextLabel")
+SpeedTitle.Size = UDim2.new(1, -120, 0, 18)
+SpeedTitle.Position = UDim2.new(0, 0, 0, 24)
+SpeedTitle.BackgroundTransparency = 1
+SpeedTitle.Text = "Range: 50 - 1100 (Default: 300)"   -- ✅ Range: 50-1100
+SpeedTitle.TextColor3 = Color3.fromRGB(180, 180, 180)
+SpeedTitle.TextSize = 10
+SpeedTitle.TextXAlignment = Enum.TextXAlignment.Left
+SpeedTitle.Font = Enum.Font.Gotham
+SpeedTitle.ZIndex = 2
+SpeedTitle.Parent = SpeedHolder
+
+local SpeedTextBox = Instance.new("TextBox")
+SpeedTextBox.Size = UDim2.new(0, 80, 0, 28)
+SpeedTextBox.Position = UDim2.new(1, -80, 0.5, -14)
+SpeedTextBox.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
+SpeedTextBox.BorderSizePixel = 0
+SpeedTextBox.Text = "300"
+SpeedTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedTextBox.TextSize = 12
+SpeedTextBox.TextXAlignment = Enum.TextXAlignment.Center
+SpeedTextBox.Font = Enum.Font.GothamBold
+SpeedTextBox.ZIndex = 2
+SpeedTextBox.Parent = SpeedHolder
+
+local SpeedCorner = Instance.new("UICorner")
+SpeedCorner.CornerRadius = UDim.new(0, 6)
+SpeedCorner.Parent = SpeedTextBox
+
+local SpeedStroke = Instance.new("UIStroke")
+SpeedStroke.Color = Color3.fromRGB(200, 200, 220)
+SpeedStroke.Thickness = 1
+SpeedStroke.Transparency = 0.3
+SpeedStroke.Parent = SpeedTextBox
+
+SpeedTextBox.FocusLost:Connect(function()
+    local Value = tonumber(SpeedTextBox.Text)
+
+    if Value then
+        -- ✅ Range: 50 - 1100
+        Value = math.clamp(Value, 50, 1100)
+        SpeedTextBox.Text = tostring(Value)
+
+        _G.YOKUDO_TeleportSpeed = Value
+
+        if _G.YOKUDO_TeleportSystem then
+            _G.YOKUDO_TeleportSystem.SetSpeed(Value)
+        end
+
+        print("[YOKUDO] Teleport Speed: " .. tostring(Value))
+    else
+        SpeedTextBox.Text = "300"
+
+        _G.YOKUDO_TeleportSpeed = 300
+
+        if _G.YOKUDO_TeleportSystem then
+            _G.YOKUDO_TeleportSystem.SetSpeed(300)
+        end
+    end
+end)
+
+_G.YOKUDO_TeleportSpeed = 300
+
+--==================================================
+-- FEATURE 3: WALK SPEED
+--==================================================
 local WalkSpeedHolder = Instance.new("Frame")
 WalkSpeedHolder.Size = UDim2.new(1, 0, 0, 32)
 WalkSpeedHolder.BackgroundTransparency = 1
-WalkSpeedHolder.LayoutOrder = 2
+WalkSpeedHolder.LayoutOrder = 4
 WalkSpeedHolder.Parent = SettingPage
 
 local WalkSpeedLabel = Instance.new("TextLabel")
 WalkSpeedLabel.Size = UDim2.new(0, 100, 1, 0)
 WalkSpeedLabel.BackgroundTransparency = 1
 WalkSpeedLabel.Text = "Walk Speed"
-WalkSpeedLabel.TextColor3 = Color3.fromRGB(205, 205, 220)
+WalkSpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 WalkSpeedLabel.TextSize = 12
 WalkSpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
 WalkSpeedLabel.TextYAlignment = Enum.TextYAlignment.Center
@@ -122,13 +350,13 @@ WalkSpeedTextBox.FocusLost:Connect(function()
     end
 end)
 
--- ==================================================
--- FEATURE 2: ANTI TRAP
--- ==================================================
+--==================================================
+-- FEATURE 4: ANTI TRAP
+--==================================================
 local AntiTrapHolder = Instance.new("Frame")
 AntiTrapHolder.Size = UDim2.new(1, 0, 0, 52)
 AntiTrapHolder.BackgroundTransparency = 1
-AntiTrapHolder.LayoutOrder = 3
+AntiTrapHolder.LayoutOrder = 5
 AntiTrapHolder.Parent = SettingPage
 
 local AntiTrapLabel = Instance.new("TextLabel")
@@ -136,7 +364,7 @@ AntiTrapLabel.Size = UDim2.new(1, -50, 0, 20)
 AntiTrapLabel.Position = UDim2.new(0, 0, 0, 2)
 AntiTrapLabel.BackgroundTransparency = 1
 AntiTrapLabel.Text = "Anti Trap"
-AntiTrapLabel.TextColor3 = Color3.fromRGB(220, 220, 235)
+AntiTrapLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 AntiTrapLabel.TextSize = 13
 AntiTrapLabel.TextXAlignment = Enum.TextXAlignment.Left
 AntiTrapLabel.TextYAlignment = Enum.TextYAlignment.Center
@@ -148,7 +376,7 @@ AntiTrapTitle.Size = UDim2.new(1, -50, 0, 18)
 AntiTrapTitle.Position = UDim2.new(0, 0, 0, 24)
 AntiTrapTitle.BackgroundTransparency = 1
 AntiTrapTitle.Text = "click for remove Trap"
-AntiTrapTitle.TextColor3 = Color3.fromRGB(150, 150, 170)
+AntiTrapTitle.TextColor3 = Color3.fromRGB(180, 180, 180)
 AntiTrapTitle.TextSize = 10
 AntiTrapTitle.TextXAlignment = Enum.TextXAlignment.Left
 AntiTrapTitle.Font = Enum.Font.Gotham
@@ -206,13 +434,13 @@ AntiTrapCheckButton.MouseButton1Click:Connect(function()
     ToggleAntiTrap()
 end)
 
--- ==================================================
--- FEATURE 3: GOD MODE (BUTTON + NOTIFICATION)
--- ==================================================
+--==================================================
+-- FEATURE 5: GOD MODE
+--==================================================
 local GodModeHolder = Instance.new("Frame")
 GodModeHolder.Size = UDim2.new(1, 0, 0, 52)
 GodModeHolder.BackgroundTransparency = 1
-GodModeHolder.LayoutOrder = 4
+GodModeHolder.LayoutOrder = 6
 GodModeHolder.Parent = SettingPage
 
 local GodModeLabel = Instance.new("TextLabel")
@@ -220,7 +448,7 @@ GodModeLabel.Size = UDim2.new(1, -90, 0, 20)
 GodModeLabel.Position = UDim2.new(0, 0, 0, 2)
 GodModeLabel.BackgroundTransparency = 1
 GodModeLabel.Text = "God Mode"
-GodModeLabel.TextColor3 = Color3.fromRGB(220, 220, 235)
+GodModeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 GodModeLabel.TextSize = 13
 GodModeLabel.TextXAlignment = Enum.TextXAlignment.Left
 GodModeLabel.TextYAlignment = Enum.TextYAlignment.Center
@@ -232,7 +460,7 @@ GodModeTitle.Size = UDim2.new(1, -90, 0, 18)
 GodModeTitle.Position = UDim2.new(0, 0, 0, 24)
 GodModeTitle.BackgroundTransparency = 1
 GodModeTitle.Text = "When Character Dead click God Mode"
-GodModeTitle.TextColor3 = Color3.fromRGB(150, 150, 170)
+GodModeTitle.TextColor3 = Color3.fromRGB(180, 180, 180)
 GodModeTitle.TextSize = 10
 GodModeTitle.TextXAlignment = Enum.TextXAlignment.Left
 GodModeTitle.Font = Enum.Font.Gotham
@@ -260,24 +488,21 @@ GodModeStroke.Thickness = 1.5
 GodModeStroke.Transparency = 0.3
 GodModeStroke.Parent = GodModeButton
 
--- ==================================================
--- BUTTON ANIMATION (God Mode)
--- ==================================================
 GodModeButton.MouseEnter:Connect(function()
-    TweenService:Create(GodModeButton, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    TweenService:Create(GodModeButton, TweenInfo.new(0.15), {
         BackgroundColor3 = Color3.fromRGB(125, 110, 220)
     }):Play()
 end)
 
 GodModeButton.MouseLeave:Connect(function()
-    TweenService:Create(GodModeButton, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    TweenService:Create(GodModeButton, TweenInfo.new(0.15), {
         BackgroundColor3 = Color3.fromRGB(105, 90, 190)
     }):Play()
 end)
 
--- ==================================================
+--==================================================
 -- NOTIFICATION FUNCTION
--- ==================================================
+--==================================================
 local function ShowNotification(Text)
     local PlayerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 
@@ -317,13 +542,13 @@ local function ShowNotification(Text)
     NotifyText.Font = Enum.Font.GothamBold
     NotifyText.Parent = NotifyFrame
 
-    TweenService:Create(NotifyFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    TweenService:Create(NotifyFrame, TweenInfo.new(0.4), {
         Position = UDim2.new(0, 20, 0, 20)
     }):Play()
 
     task.wait(5)
 
-    TweenService:Create(NotifyFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+    TweenService:Create(NotifyFrame, TweenInfo.new(0.3), {
         Position = UDim2.new(0, -250, 0, 20),
         BackgroundTransparency = 1
     }):Play()
@@ -338,18 +563,15 @@ local function ShowNotification(Text)
     NotifyGui:Destroy()
 end
 
--- ==================================================
--- CLICK → ENABLE GOD MODE + NOTIFY
--- ==================================================
 GodModeButton.MouseButton1Down:Connect(function()
-    TweenService:Create(GodModeButton, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    TweenService:Create(GodModeButton, TweenInfo.new(0.08), {
         Size = UDim2.new(0, 62, 0, 23),
         BackgroundColor3 = Color3.fromRGB(85, 70, 170)
     }):Play()
 end)
 
 GodModeButton.MouseButton1Up:Connect(function()
-    TweenService:Create(GodModeButton, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    TweenService:Create(GodModeButton, TweenInfo.new(0.08), {
         Size = UDim2.new(0, 70, 0, 26),
         BackgroundColor3 = Color3.fromRGB(105, 90, 190)
     }):Play()
@@ -362,13 +584,13 @@ GodModeButton.MouseButton1Click:Connect(function()
     ShowNotification("God Mode Start")
 end)
 
--- ==================================================
--- FEATURE 4: MANUAL FAST CLICK (BUTTON)
--- ==================================================
+--==================================================
+-- FEATURE 6: MANUAL FAST CLICK
+--==================================================
 local FastClickHolder = Instance.new("Frame")
 FastClickHolder.Size = UDim2.new(1, 0, 0, 52)
 FastClickHolder.BackgroundTransparency = 1
-FastClickHolder.LayoutOrder = 5
+FastClickHolder.LayoutOrder = 7
 FastClickHolder.Parent = SettingPage
 
 local FastClickLabel = Instance.new("TextLabel")
@@ -376,7 +598,7 @@ FastClickLabel.Size = UDim2.new(1, -90, 0, 20)
 FastClickLabel.Position = UDim2.new(0, 0, 0, 2)
 FastClickLabel.BackgroundTransparency = 1
 FastClickLabel.Text = "Manual Fast Click"
-FastClickLabel.TextColor3 = Color3.fromRGB(220, 220, 235)
+FastClickLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 FastClickLabel.TextSize = 13
 FastClickLabel.TextXAlignment = Enum.TextXAlignment.Left
 FastClickLabel.TextYAlignment = Enum.TextYAlignment.Center
@@ -388,7 +610,7 @@ FastClickTitle.Size = UDim2.new(1, -90, 0, 18)
 FastClickTitle.Position = UDim2.new(0, 0, 0, 24)
 FastClickTitle.BackgroundTransparency = 1
 FastClickTitle.Text = "Enable Click Egg Fast by hand"
-FastClickTitle.TextColor3 = Color3.fromRGB(150, 150, 170)
+FastClickTitle.TextColor3 = Color3.fromRGB(180, 180, 180)
 FastClickTitle.TextSize = 10
 FastClickTitle.TextXAlignment = Enum.TextXAlignment.Left
 FastClickTitle.Font = Enum.Font.Gotham
@@ -416,38 +638,32 @@ FastClickStroke.Thickness = 1.5
 FastClickStroke.Transparency = 0.3
 FastClickStroke.Parent = FastClickButton
 
--- ==================================================
--- BUTTON ANIMATION (Fast Click)
--- ==================================================
 FastClickButton.MouseEnter:Connect(function()
-    TweenService:Create(FastClickButton, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    TweenService:Create(FastClickButton, TweenInfo.new(0.15), {
         BackgroundColor3 = Color3.fromRGB(125, 110, 220)
     }):Play()
 end)
 
 FastClickButton.MouseLeave:Connect(function()
-    TweenService:Create(FastClickButton, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    TweenService:Create(FastClickButton, TweenInfo.new(0.15), {
         BackgroundColor3 = Color3.fromRGB(105, 90, 190)
     }):Play()
 end)
 
 FastClickButton.MouseButton1Down:Connect(function()
-    TweenService:Create(FastClickButton, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    TweenService:Create(FastClickButton, TweenInfo.new(0.08), {
         Size = UDim2.new(0, 62, 0, 23),
         BackgroundColor3 = Color3.fromRGB(85, 70, 170)
     }):Play()
 end)
 
 FastClickButton.MouseButton1Up:Connect(function()
-    TweenService:Create(FastClickButton, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    TweenService:Create(FastClickButton, TweenInfo.new(0.08), {
         Size = UDim2.new(0, 70, 0, 26),
         BackgroundColor3 = Color3.fromRGB(105, 90, 190)
     }):Play()
 end)
 
--- ==================================================
--- CLICK → TOGGLE FAST CLICK + NOTIFY
--- ==================================================
 FastClickButton.MouseButton1Click:Connect(function()
     if not _G.YOKUDO_ManualFastClick then
         warn("[YOKUDO] ManualFastClick feature not loaded")
@@ -464,9 +680,6 @@ FastClickButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- ==================================================
--- SYNC STATE ON LOAD
--- ==================================================
 task.spawn(function()
     task.wait(0.5)
     if _G.YOKUDO_ManualFastClick then
