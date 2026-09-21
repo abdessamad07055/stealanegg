@@ -1,20 +1,20 @@
--- ==================================================
+--==================================================
 -- YOKUDO HUB | TAB | Auto Farming
--- ==================================================
+--==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
 local TweenService = game:GetService("TweenService")
 
 local AutoFarmingTab, AutoFarmingPage = TabsManager:RegisterTab("Auto Farming", 4, "AUTO_FARMING")
 
--- ==================================================
+--==================================================
 -- CONTENT
--- ==================================================
+--==================================================
 CreateSectionTitle(AutoFarmingPage, "Auto Farming", 1)
 
--- ==================================================
+--==================================================
 -- FEATURE 1: Click Get Egg
--- ==================================================
+--==================================================
 local GetEggBox = Instance.new("Frame")
 GetEggBox.Size = UDim2.new(1, 0, 0, 60)
 GetEggBox.BackgroundColor3 = Color3.fromRGB(28, 29, 42)
@@ -96,6 +96,7 @@ GetEggCheck.Visible = false
 GetEggCheck.Parent = GetEggCheckButton
 
 local SelectedEggId = nil
+local SelectedEggData = nil
 local GetEggEnabled = false
 
 local function UpdateGetEggBox(Icon, Name, Rate, EggId)
@@ -120,16 +121,19 @@ local function ToggleGetEgg()
         GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         GetEggCheckButton.BackgroundTransparency = 0
         GetEggCheckStroke.Color = Color3.fromRGB(135, 120, 225)
-        if SelectedEggId and _G.YOKUDO_TeleportSystem then
-            _G.YOKUDO_TeleportSystem.SetTargetId(SelectedEggId)
-            _G.YOKUDO_TeleportSystem.Enable()
+
+        -- ✅ Call StartTeleport (reads Method from Setting)
+        if _G.YOKUDO_AutoFarm then
+            _G.YOKUDO_AutoFarm.StartTeleport()
         end
     else
         GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
         GetEggCheckButton.BackgroundTransparency = 0.85
         GetEggCheckStroke.Color = Color3.fromRGB(255, 255, 255)
-        if _G.YOKUDO_TeleportSystem then
-            _G.YOKUDO_TeleportSystem.Disable()
+
+        -- ✅ Call StopTeleport
+        if _G.YOKUDO_AutoFarm then
+            _G.YOKUDO_AutoFarm.StopTeleport()
         end
     end
 end
@@ -138,9 +142,9 @@ GetEggCheckButton.MouseButton1Click:Connect(function()
     ToggleGetEgg()
 end)
 
--- ==================================================
+--==================================================
 -- FEATURE 2: Start Check Egg
--- ==================================================
+--==================================================
 local CheckEggHolder = Instance.new("Frame")
 CheckEggHolder.Size = UDim2.new(1, 0, 0, 44)
 CheckEggHolder.BackgroundColor3 = Color3.fromRGB(28, 29, 42)
@@ -213,7 +217,7 @@ CheckEggCheck.Parent = CheckEggCheckButton
 
 local CheckEggEnabled = false
 local EggScrollFrame = nil
-local EggEntries = {} -- Cache Entries
+local EggEntries = {}
 
 local function CreateEggEntry(EggData)
     local Entry = Instance.new("Frame")
@@ -294,6 +298,11 @@ local function CreateEggEntry(EggData)
 
     SelectButton.MouseButton1Click:Connect(function()
         UpdateGetEggBox(EggData.Icon, EggData.DisplayName, EggData.EarningRate, EggData.Id)
+
+        -- ✅ Save EggData ទាំងមូល
+        SelectedEggData = EggData
+
+        -- ✅ គ្រាន់តែ Save មិន Enable
         if _G.YOKUDO_AutoFarm then
             _G.YOKUDO_AutoFarm.SelectEgg(EggData)
         end
@@ -306,7 +315,6 @@ local function RefreshEggList()
     if not CheckEggEnabled then return end
     if not _G.YOKUDO_AutoFarm then return end
 
-    -- Destroy entries ចាស់
     for _, child in ipairs(EggScrollFrame:GetChildren()) do
         if child:IsA("Frame") then
             child:Destroy()
@@ -355,9 +363,9 @@ CheckEggCheckButton.MouseButton1Click:Connect(function()
     ToggleCheckEgg()
 end)
 
--- ==================================================
+--==================================================
 -- EGG LIST
--- ==================================================
+--==================================================
 EggScrollFrame = Instance.new("ScrollingFrame")
 EggScrollFrame.Size = UDim2.new(1, 0, 0, 200)
 EggScrollFrame.BackgroundTransparency = 1
@@ -388,7 +396,7 @@ workspace.AreaEggSlotsClient.ChildRemoved:Connect(function()
 end)
 
 task.spawn(function()
-    while task.wait(3) do -- ប្តូរពី 1 ទៅ 3 វិនាទី
+    while task.wait(3) do
         if CheckEggEnabled then
             RefreshEggList()
         end
