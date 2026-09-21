@@ -47,12 +47,15 @@ MethodTitle.Font = Enum.Font.Gotham
 MethodTitle.ZIndex = 101
 MethodTitle.Parent = MethodHolder
 
+-- ✅ Read from _G (loaded from Config)
+local SelectedMethod = _G.YOKUDO_SelectedMethod or "TeleportFly"
+
 local DropdownBtn = Instance.new("TextButton")
 DropdownBtn.Size = UDim2.new(0, 110, 0, 28)
 DropdownBtn.Position = UDim2.new(1, -110, 0.5, -14)
 DropdownBtn.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
 DropdownBtn.BorderSizePixel = 0
-DropdownBtn.Text = "TeleportFly ▼"
+DropdownBtn.Text = SelectedMethod .. " ▼"  -- ✅ Read from Config
 DropdownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 DropdownBtn.TextSize = 11
 DropdownBtn.Font = Enum.Font.GothamBold
@@ -101,8 +104,6 @@ ListPadding.PaddingLeft = UDim.new(0, 4)
 ListPadding.PaddingRight = UDim.new(0, 4)
 ListPadding.Parent = DropdownList
 
-local SelectedMethod = "TeleportFly"
-
 local function CreateOption(Name, Order)
     local Option = Instance.new("TextButton")
     Option.Size = UDim2.new(1, 0, 0, 22)
@@ -126,8 +127,12 @@ local function CreateOption(Name, Order)
         DropdownBtn.Text = Name .. " ▼"
         DropdownList.Visible = false
 
-        -- ✅ ONLY SAVE METHOD — DO NOT ENABLE / DISABLE
         _G.YOKUDO_SelectedMethod = Name
+
+        -- ✅ Save Config
+        if _G.YOKUDO_ConfigSystem then
+            _G.YOKUDO_ConfigSystem.Save()
+        end
 
         print("[YOKUDO] Method Teleport Selected: " .. Name)
     end)
@@ -152,7 +157,10 @@ DropdownBtn.MouseButton1Click:Connect(function()
     DropdownList.Visible = not DropdownList.Visible
 end)
 
-_G.YOKUDO_SelectedMethod = "TeleportFly"
+-- ✅ Only set default if not already loaded from Config
+if _G.YOKUDO_SelectedMethod == nil then
+    _G.YOKUDO_SelectedMethod = "TeleportFly"
+end
 
 --==================================================
 -- FEATURE 2: TELEPORT SPEED (TEXTBOX)
@@ -181,7 +189,7 @@ local SpeedTitle = Instance.new("TextLabel")
 SpeedTitle.Size = UDim2.new(1, -120, 0, 18)
 SpeedTitle.Position = UDim2.new(0, 0, 0, 24)
 SpeedTitle.BackgroundTransparency = 1
-SpeedTitle.Text = "Range: 50 - 1100 (Default: 300)"   -- ✅ Range: 50-1100
+SpeedTitle.Text = "Range: 50 - 1100 (Default: 300)"
 SpeedTitle.TextColor3 = Color3.fromRGB(180, 180, 180)
 SpeedTitle.TextSize = 10
 SpeedTitle.TextXAlignment = Enum.TextXAlignment.Left
@@ -189,12 +197,15 @@ SpeedTitle.Font = Enum.Font.Gotham
 SpeedTitle.ZIndex = 2
 SpeedTitle.Parent = SpeedHolder
 
+-- ✅ Read from _G (loaded from Config)
+local InitialSpeed = _G.YOKUDO_TeleportSpeed or 300
+
 local SpeedTextBox = Instance.new("TextBox")
 SpeedTextBox.Size = UDim2.new(0, 80, 0, 28)
 SpeedTextBox.Position = UDim2.new(1, -80, 0.5, -14)
 SpeedTextBox.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
 SpeedTextBox.BorderSizePixel = 0
-SpeedTextBox.Text = "300"
+SpeedTextBox.Text = tostring(InitialSpeed)  -- ✅ Read from Config
 SpeedTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 SpeedTextBox.TextSize = 12
 SpeedTextBox.TextXAlignment = Enum.TextXAlignment.Center
@@ -216,7 +227,6 @@ SpeedTextBox.FocusLost:Connect(function()
     local Value = tonumber(SpeedTextBox.Text)
 
     if Value then
-        -- ✅ Range: 50 - 1100
         Value = math.clamp(Value, 50, 1100)
         SpeedTextBox.Text = tostring(Value)
 
@@ -224,6 +234,11 @@ SpeedTextBox.FocusLost:Connect(function()
 
         if _G.YOKUDO_TeleportSystem then
             _G.YOKUDO_TeleportSystem.SetSpeed(Value)
+        end
+
+        -- ✅ Save Config
+        if _G.YOKUDO_ConfigSystem then
+            _G.YOKUDO_ConfigSystem.Save()
         end
 
         print("[YOKUDO] Teleport Speed: " .. tostring(Value))
@@ -235,10 +250,18 @@ SpeedTextBox.FocusLost:Connect(function()
         if _G.YOKUDO_TeleportSystem then
             _G.YOKUDO_TeleportSystem.SetSpeed(300)
         end
+
+        -- ✅ Save Config
+        if _G.YOKUDO_ConfigSystem then
+            _G.YOKUDO_ConfigSystem.Save()
+        end
     end
 end)
 
-_G.YOKUDO_TeleportSpeed = 300
+-- ✅ Only set default if not already loaded from Config
+if _G.YOKUDO_TeleportSpeed == nil then
+    _G.YOKUDO_TeleportSpeed = 300
+end
 
 --==================================================
 -- FEATURE 3: WALK SPEED
@@ -688,6 +711,20 @@ task.spawn(function()
         else
             FastClickButton.Text = "Click"
         end
+    end
+end)
+
+--==================================================
+-- ✅ SYNC DROPDOWN + TEXTBOX FROM CONFIG
+--==================================================
+task.spawn(function()
+    task.wait(0.5)
+    if _G.YOKUDO_SelectedMethod then
+        SelectedMethod = _G.YOKUDO_SelectedMethod
+        DropdownBtn.Text = SelectedMethod .. " ▼"
+    end
+    if _G.YOKUDO_TeleportSpeed then
+        SpeedTextBox.Text = tostring(_G.YOKUDO_TeleportSpeed)
     end
 end)
 
