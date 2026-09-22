@@ -177,8 +177,6 @@ loadstring(GetScript("Tabs/Init.lua"))()
 -- LOAD FEATURES
 --==================================================
 -- ✅ AntiAFK (ដំណើរការភ្លាម មិនត្រូវការ UI)
-Loading.Update(28)
---loadstring(GetScript("Features/AntiAFK.lua"))()
 
 Loading.Update(30)
 loadstring(GetScript("Features/WalkSpeed.lua"))()
@@ -254,8 +252,11 @@ Loading.Update(95)
 --==================================================
 -- LOAD ANTI CHEAT
 --==================================================
-Loading.Update(98)
+Loading.Update(97)
 loadstring(GetScript("Features/BypassAntiCheat.lua"))()
+
+Loading.Update(98)
+loadstring(GetScript("Features/AntiAFK.lua"))()
 
 Loading.Update(100)
 
