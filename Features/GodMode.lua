@@ -1,24 +1,23 @@
---==================================================
+-- ==================================================
 -- YOKUDO HUB | FEATURE | God Mode
 -- Humanoid Replace + Anti Death
--- FIXED: Handle PlayerModule error
---==================================================
+-- ==================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
 local Player = Players.LocalPlayer
 
---==================================================
+-- ==================================================
 -- VARIABLES
---==================================================
+-- ==================================================
 local GodModeEnabled = false
 local GodModeConnection = nil
 local GodMode = true
 
---==================================================
+-- ==================================================
 -- RUN HUMANOID REPLACE + ANTI DEATH
---==================================================
+-- ==================================================
 local function RunGodMode()
     local Character = Player.Character
     if not Character then return end
@@ -33,7 +32,7 @@ local function RunGodMode()
     print("[YOKUDO] START HUMANOID REPLACE")
     print("========================================")
 
-    -- Save jump properties
+    -- SAVE JUMP PROPERTIES
     local SavedJumpProperties = {}
 
     local function SaveJumpProperty(Property)
@@ -49,13 +48,13 @@ local function RunGodMode()
     SaveJumpProperty("JumpHeight")
     SaveJumpProperty("UseJumpPower")
 
-    -- Save state machine
+    -- SAVE STATE MACHINE
     local SavedEvaluateStateMachine
     pcall(function()
         SavedEvaluateStateMachine = OldHumanoid.EvaluateStateMachine
     end)
 
-    -- Save all humanoid state settings
+    -- SAVE ALL HUMANOID STATE SETTINGS
     local SavedStates = {}
     local States = {
         Enum.HumanoidStateType.FallingDown,
@@ -85,7 +84,7 @@ local function RunGodMode()
         end
     end
 
-    -- Clone humanoid
+    -- CLONE HUMANOID
     local NewHumanoid = OldHumanoid:Clone()
     if not NewHumanoid then
         warn("[YOKUDO] Failed to clone Humanoid")
@@ -93,7 +92,7 @@ local function RunGodMode()
     end
     NewHumanoid.Name = OldHumanoid.Name
 
-    -- Move children
+    -- MOVE HUMANOID CHILDREN
     for _, Child in ipairs(OldHumanoid:GetChildren()) do
         local ExistingCloneChild = NewHumanoid:FindFirstChild(Child.Name)
         if ExistingCloneChild then
@@ -106,7 +105,7 @@ local function RunGodMode()
         end)
     end
 
-    -- Replace
+    -- REPLACEMENT ORDER
     OldHumanoid:Destroy()
     task.wait()
     NewHumanoid.Parent = Character
@@ -119,7 +118,7 @@ local function RunGodMode()
 
     print("[YOKUDO] New Humanoid:", NewHumanoid)
 
-    -- Restore jump properties
+    -- RESTORE JUMP PROPERTIES
     pcall(function()
         NewHumanoid.UseJumpPower = SavedJumpProperties.UseJumpPower
     end)
@@ -130,21 +129,21 @@ local function RunGodMode()
         NewHumanoid.JumpHeight = SavedJumpProperties.JumpHeight
     end)
 
-    -- Restore state machine
+    -- RESTORE EVALUATE STATE MACHINE
     pcall(function()
         if SavedEvaluateStateMachine ~= nil then
             NewHumanoid.EvaluateStateMachine = SavedEvaluateStateMachine
         end
     end)
 
-    -- Restore states
+    -- RESTORE HUMANOID STATE SETTINGS
     for State, Enabled in pairs(SavedStates) do
         pcall(function()
             NewHumanoid:SetStateEnabled(State, Enabled)
         end)
     end
 
-    -- Ensure animator
+    -- ENSURE ANIMATOR
     local Animator = NewHumanoid:FindFirstChildOfClass("Animator")
     if not Animator then
         Animator = Instance.new("Animator")
@@ -152,7 +151,7 @@ local function RunGodMode()
     end
     print("[YOKUDO] Animator:", Animator)
 
-    -- Restart animate
+    -- RESTART ANIMATE
     local Animate = Character:FindFirstChild("Animate")
     if Animate then
         print("[YOKUDO] Restarting Animate...")
@@ -168,7 +167,7 @@ local function RunGodMode()
 
     task.wait(0.15)
 
-    -- Anti-death
+    -- ANTI DEATH FUNCTIONS
     local function LockHealth()
         if GodMode and NewHumanoid and NewHumanoid.Parent then
             pcall(function()
@@ -215,42 +214,25 @@ local function RunGodMode()
     BlockDeathState()
     BindAntiDeath(NewHumanoid)
 
-    --==================================================
-    -- CONTROL MODULE (FIXED)
-    --==================================================
+    -- CONTROL MODULE
     local function RefreshControls()
         local PlayerScripts = Player:FindFirstChild("PlayerScripts")
         if not PlayerScripts then return end
         local PlayerModule = PlayerScripts:FindFirstChild("PlayerModule")
         if not PlayerModule then return end
-
-        -- ✅ Use pcall to catch errors
         local Success, Module = pcall(function()
             return require(PlayerModule)
         end)
-
-        if not Success then
-            warn("[YOKUDO] Failed to require PlayerModule: " .. tostring(Module))
-            return
-        end
-
-        if not Module then return end
-
-        -- ✅ Use pcall for GetControls
-        local ControlsSuccess, Controls = pcall(function()
-            return Module:GetControls()
+        if not Success or not Module then return end
+        local Controls
+        pcall(function()
+            Controls = Module:GetControls()
         end)
-
-        if not ControlsSuccess or not Controls then return end
-
-        -- ✅ Use pcall for OnCharacterAdded
+        if not Controls then return end
         pcall(function()
             Controls:OnCharacterAdded(Character)
         end)
-
         task.wait()
-
-        -- ✅ Use pcall for UpdateActiveControlModuleEnabled
         pcall(function()
             Controls:UpdateActiveControlModuleEnabled()
         end)
@@ -258,7 +240,7 @@ local function RunGodMode()
 
     RefreshControls()
 
-    -- Camera
+    -- CAMERA
     pcall(function()
         local Camera = workspace.CurrentCamera
         if Camera then
@@ -266,6 +248,7 @@ local function RunGodMode()
         end
     end)
 
+    -- FINAL STATE RESTORE
     task.wait(0.25)
 
     if not Character.Parent then return end
@@ -273,7 +256,6 @@ local function RunGodMode()
     local CurrentHumanoid = Character:FindFirstChildOfClass("Humanoid")
     if CurrentHumanoid ~= NewHumanoid then return end
 
-    -- Final restore
     pcall(function()
         NewHumanoid.UseJumpPower = SavedJumpProperties.UseJumpPower
     end)
@@ -306,7 +288,7 @@ local function RunGodMode()
         end
     end)
 
-    -- Final animate restart
+    -- FINAL ANIMATE RESTART
     local CurrentAnimate = Character:FindFirstChild("Animate")
     if CurrentAnimate then
         pcall(function()
@@ -318,7 +300,7 @@ local function RunGodMode()
         end)
     end
 
-    -- Start God Mode Loop
+    -- START GOD MODE LOOP
     if GodModeConnection then
         GodModeConnection:Disconnect()
         GodModeConnection = nil
@@ -350,9 +332,9 @@ local function RunGodMode()
     print("========================================")
 end
 
---==================================================
+-- ==================================================
 -- ENABLE / DISABLE / TOGGLE
---==================================================
+-- ==================================================
 local function EnableGodMode()
     GodModeEnabled = true
     task.spawn(RunGodMode)
@@ -376,9 +358,9 @@ local function ToggleGodMode()
     end
 end
 
---==================================================
+-- ==================================================
 -- EXPORT
---==================================================
+-- ==================================================
 _G.YOKUDO_GodMode = {
     Toggle = ToggleGodMode,
     Enable = EnableGodMode,
