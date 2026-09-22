@@ -198,7 +198,7 @@ loadstring(GetScript("Features/AutoAttack.lua"))()
 
 -- ✅ AFKSystem (Load មុន AttackDrone + ManagerDrone)
 Loading.Update(48)
-loadstring(GetScript("Features/AFKSystem.lua"))()
+--loadstring(GetScript("Features/AFKSystem.lua"))()
 
 -- ✅ AttackDrone (កែរួច — ដក InitialFlyAndStartLoop ចេញ)
 Loading.Update(51)
@@ -206,7 +206,7 @@ loadstring(GetScript("Features/AttackDrone.lua"))()
 
 -- ✅ ManagerDrone (Load ក្រោយ AFK + Attack)
 Loading.Update(54)
-loadstring(GetScript("Features/ManagerDrone.lua"))()
+--loadstring(GetScript("Features/ManagerDrone.lua"))()
 
 Loading.Update(57)
 loadstring(GetScript("Features/ManualFastClick.lua"))()
