@@ -256,7 +256,7 @@ Loading.Update(97)
 loadstring(GetScript("Features/BypassAntiCheat.lua"))()
 
 Loading.Update(98)
-loadstring(GetScript("Features/AntiAFK.lua"))()
+--loadstring(GetScript("Features/AntiAFK.lua"))()
 
 Loading.Update(100)
 
