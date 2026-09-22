@@ -1,109 +1,251 @@
 -- ==================================================
--- YOKUDO HUB | TAB | Event
--- Feature: Auto Attack Drone
+-- YOKUDO HUB | FEATURE | Manager Drone
+-- គ្រប់គ្រង Event → ហៅ Attack ឬ AFK
+-- ✅ Event ចេញ → Stop AFK → Jump Out → Safe Zone → Call Attack
+-- ✅ Event Sec <= 10 → Stop Attack → Call AFK
+-- ✅ Stop ពេល Disable
 -- ==================================================
 
-local TabsManager = _G.YOKUDO_TabsManager
-local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
 
-local EventTab, EventPage = TabsManager:RegisterTab("Event", 5, "EVENT")
-
--- ==================================================
--- CONTENT
--- ==================================================
-CreateSectionTitle(EventPage, "Event", 1)
+local Player = Players.LocalPlayer
 
 -- ==================================================
--- FEATURE: AUTO ATTACK DRONE (Checkbox)
+-- SETTINGS
 -- ==================================================
-local ManagerHolder = Instance.new("Frame")
-ManagerHolder.Size = UDim2.new(1, 0, 0, 52)
-ManagerHolder.BackgroundTransparency = 1
-ManagerHolder.LayoutOrder = 2
-ManagerHolder.Parent = EventPage
+local EVENT_CHECK_INTERVAL = 1
+local EVENT_STOP_ATTACK_THRESHOLD = 10   -- ✅ ពេល Event <= 10s → Stop Attack → AFK
+local SAFE_WAIT_TIME = 1
+local SAFE_ZONE = Vector3.new(533, 70, -366)
 
--- ✅ Title ថ្មី
-local ManagerLabel = Instance.new("TextLabel")
-ManagerLabel.Size = UDim2.new(1, -50, 0, 20)
-ManagerLabel.Position = UDim2.new(0, 0, 0, 2)
-ManagerLabel.BackgroundTransparency = 1
-ManagerLabel.Text = "Auto Attack Drone"
-ManagerLabel.TextColor3 = Color3.fromRGB(220, 220, 235)
-ManagerLabel.TextSize = 13
-ManagerLabel.TextXAlignment = Enum.TextXAlignment.Left
-ManagerLabel.TextYAlignment = Enum.TextYAlignment.Center
-ManagerLabel.Font = Enum.Font.GothamBold
-ManagerLabel.Parent = ManagerHolder
+-- ==================================================
+-- STATE
+-- ==================================================
+local ManagerEnabled = false
+local LastEventSec = 0
+local LastEventText = ""
+local ManagerThread = nil
 
--- ✅ Subtitle ថ្មី
-local ManagerSub = Instance.new("TextLabel")
-ManagerSub.Size = UDim2.new(1, -50, 0, 18)
-ManagerSub.Position = UDim2.new(0, 0, 0, 24)
-ManagerSub.BackgroundTransparency = 1
-ManagerSub.Text = "AFK Farm"
-ManagerSub.TextColor3 = Color3.fromRGB(150, 150, 170)
-ManagerSub.TextSize = 10
-ManagerSub.TextXAlignment = Enum.TextXAlignment.Left
-ManagerSub.Font = Enum.Font.Gotham
-ManagerSub.Parent = ManagerHolder
+-- ==================================================
+-- GET EVENT INFO
+-- ==================================================
+local function GetEventInfo()
+    local Success, Value = pcall(function()
+        return game:GetService("Players").LocalPlayer.PlayerGui
+            .HUD.GameHUD.BottomRight.ExperimentTimer.Value.Text
+    end)
+    if not Success or not Value then
+        return 0, "", false
+    end
 
-local ManagerButton = Instance.new("TextButton")
-ManagerButton.Size = UDim2.new(0, 26, 0, 26)
-ManagerButton.Position = UDim2.new(1, -26, 0.5, -13)
-ManagerButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-ManagerButton.BorderSizePixel = 0
-ManagerButton.Text = ""
-ManagerButton.AutoButtonColor = false
-ManagerButton.Parent = ManagerHolder
+    local Text = tostring(Value)
 
-local ManagerCorner = Instance.new("UICorner")
-ManagerCorner.CornerRadius = UDim.new(0, 6)
-ManagerCorner.Parent = ManagerButton
+    local HasEventEnds = string.find(Text, "Event ends") ~= nil
+    local IsEventActive = HasEventEnds
 
-local ManagerStroke = Instance.new("UIStroke")
-ManagerStroke.Color = Color3.fromRGB(200, 200, 220)
-ManagerStroke.Thickness = 1.5
-ManagerStroke.Parent = ManagerButton
+    local M = tonumber(string.match(Text, "(%d+)m")) or 0
+    local S = tonumber(string.match(Text, "(%d+)s")) or 0
+    local TotalSec = M * 60 + S
 
-local ManagerCheck = Instance.new("TextLabel")
-ManagerCheck.Size = UDim2.new(1, 0, 1, 0)
-ManagerCheck.BackgroundTransparency = 1
-ManagerCheck.Text = "✓"
-ManagerCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
-ManagerCheck.TextSize = 18
-ManagerCheck.Font = Enum.Font.GothamBold
-ManagerCheck.Visible = false
-ManagerCheck.Parent = ManagerButton
+    return TotalSec, Text, IsEventActive
+end
 
-ManagerButton.MouseButton1Click:Connect(function()
-    if not _G.YOKUDO_ManagerDrone then
-        warn("[YOKUDO] ManagerDrone not loaded!")
+-- ==================================================
+-- FORCE STOP ALL FEATURES
+-- ==================================================
+local function ForceStopAll()
+    print("[ManagerDrone] Force Stop All Features")
+
+    if _G.YOKUDO_AttackDrone then
+        pcall(function() _G.YOKUDO_AttackDrone.Stop() end)
+    end
+    if _G.YOKUDO_AFKSystem then
+        pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
+    end
+end
+
+-- ==================================================
+-- SWITCH FROM AFK TO ATTACK
+-- Event ចេញ → Stop AFK → Jump Out → Safe Zone → Call Attack
+-- ==================================================
+local function SwitchAFKToAttack()
+    print("[ManagerDrone] Event Detected → Switch AFK to Attack")
+
+    -- 1. រក Treadmill Pos
+    local TreadmillPos = nil
+    if _G.YOKUDO_AFKSystem then
+        TreadmillPos = _G.YOKUDO_AFKSystem.GetMyTreadmillPos()
+    end
+
+    if not TreadmillPos and _G.YOKUDO_AFKSystem then
+        local _, Treadmill = _G.YOKUDO_AFKSystem.FindMyPlotAndTreadmill()
+        if Treadmill then
+            TreadmillPos = Treadmill.Position
+        end
+    end
+
+    if not TreadmillPos then
+        print("[ManagerDrone] No Treadmill → Stop AFK → Call Attack")
+        if _G.YOKUDO_AFKSystem then
+            _G.YOKUDO_AFKSystem.Disable()
+        end
+        task.wait(0.5)
+        if _G.YOKUDO_AttackDrone then
+            _G.YOKUDO_AttackDrone.Start()
+        end
         return
     end
 
-    local NewState = not _G.YOKUDO_ManagerDrone.IsEnabled()
-    ManagerCheck.Visible = NewState
-    if NewState then
-        ManagerButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-        ManagerStroke.Color = Color3.fromRGB(135, 120, 225)
-        _G.YOKUDO_ManagerDrone.Enable()
-    else
-        ManagerButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-        ManagerStroke.Color = Color3.fromRGB(200, 200, 220)
-        _G.YOKUDO_ManagerDrone.Disable()
-    end
-end)
+    -- 2. Jump ចេញពី Treadmill រហូតដល់ Dist > 5
+    print("[ManagerDrone] Jumping out of Treadmill...")
+    _G.YOKUDO_AFKSystem.JumpOutTreadmill(TreadmillPos, function()
+        print("[ManagerDrone] ✅ Jumped out!")
 
-task.spawn(function()
-    task.wait(0.5)
-    if _G.YOKUDO_ManagerDrone then
-        local State = _G.YOKUDO_ManagerDrone.IsEnabled()
-        ManagerCheck.Visible = State
-        if State then
-            ManagerButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-            ManagerStroke.Color = Color3.fromRGB(135, 120, 225)
+        -- 3. Stop AFK
+        if _G.YOKUDO_AFKSystem then
+            _G.YOKUDO_AFKSystem.Disable()
         end
-    end
-end)
 
-print("✅ Event Tab Loaded")
+        task.wait(0.5)
+
+        -- 4. Fly TP ទៅ Safe Zone
+        print("[ManagerDrone] Fly to Safe Zone...")
+        local Hum, Root = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid"), Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+        if Root then
+            -- ប្រើ FlyTP ពី AFKSystem
+            if _G.YOKUDO_AFKSystem then
+                _G.YOKUDO_AFKSystem.FlyTP(SAFE_ZONE, function()
+                    task.wait(SAFE_WAIT_TIME)
+
+                    -- 5. Call Attack
+                    print("[ManagerDrone] Safe Zone Reached → Call Attack")
+                    if _G.YOKUDO_AttackDrone then
+                        _G.YOKUDO_AttackDrone.Start()
+                    end
+                end)
+            else
+                if _G.YOKUDO_AttackDrone then
+                    _G.YOKUDO_AttackDrone.Start()
+                end
+            end
+        else
+            if _G.YOKUDO_AttackDrone then
+                _G.YOKUDO_AttackDrone.Start()
+            end
+        end
+    end)
+end
+
+-- ==================================================
+-- MAIN LOOP
+-- ==================================================
+local function MainLoop()
+    while ManagerEnabled do
+        local EventSec, EventText, IsEventActive = GetEventInfo()
+
+        local EventNotActive = not IsEventActive
+        local EventStopAttack = IsEventActive and EventSec > 0 and EventSec <= EVENT_STOP_ATTACK_THRESHOLD
+        local EventActive = IsEventActive and EventSec > EVENT_STOP_ATTACK_THRESHOLD
+
+        print("[ManagerDrone] Text:", EventText, "| Sec:", EventSec, "| IsActive:", IsEventActive, "| NotActive:", EventNotActive, "| StopAttack:", EventStopAttack, "| Active:", EventActive)
+
+        -- ==================================================
+        -- Event មិនទាន់ចេញ (Text = "in Xm Ys") → AFK System
+        -- ==================================================
+        if EventNotActive then
+            if _G.YOKUDO_AttackDrone and _G.YOKUDO_AttackDrone.IsEnabled() then
+                print("[ManagerDrone] Event Not Active → Stop Attack")
+                _G.YOKUDO_AttackDrone.Stop()
+            end
+
+            if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
+                print("[ManagerDrone] Event Not Active → AFK System")
+                _G.YOKUDO_AFKSystem.Enable()
+            end
+        -- ==================================================
+        -- Event ជិតចប់ (Sec <= 10) → Stop Attack → AFK
+        -- ==================================================
+        elseif EventStopAttack then
+            if _G.YOKUDO_AttackDrone and _G.YOKUDO_AttackDrone.IsEnabled() then
+                print("[ManagerDrone] Event <= 10s → Stop Attack → AFK System")
+                _G.YOKUDO_AttackDrone.Stop()
+            end
+
+            if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
+                _G.YOKUDO_AFKSystem.Enable()
+            end
+        -- ==================================================
+        -- Event ចេញ (Sec > 10) → Switch AFK → Attack
+        -- ==================================================
+        elseif EventActive then
+            if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
+                print("[ManagerDrone] Event Active → Switch AFK to Attack")
+                SwitchAFKToAttack()
+            elseif _G.YOKUDO_AttackDrone and not _G.YOKUDO_AttackDrone.IsEnabled() then
+                print("[ManagerDrone] Event Active → Attack Drone")
+                _G.YOKUDO_AttackDrone.Start()
+            end
+        end
+
+        LastEventSec = EventSec
+        LastEventText = EventText
+        task.wait(EVENT_CHECK_INTERVAL)
+    end
+
+    ForceStopAll()
+    print("[ManagerDrone] MainLoop Stopped")
+end
+
+-- ==================================================
+-- ENABLE / DISABLE
+-- ==================================================
+local function EnableManager()
+    if ManagerEnabled then return end
+    ManagerEnabled = true
+
+    if ManagerThread then
+        pcall(function() task.cancel(ManagerThread) end)
+        ManagerThread = nil
+    end
+
+    ManagerThread = task.spawn(function() MainLoop() end)
+
+    print("[ManagerDrone] Manager Drone: ON")
+end
+
+local function DisableManager()
+    if not ManagerEnabled then return end
+    ManagerEnabled = false
+
+    if ManagerThread then
+        pcall(function() task.cancel(ManagerThread) end)
+        ManagerThread = nil
+    end
+
+    ForceStopAll()
+
+    print("[ManagerDrone] Manager Drone: OFF")
+end
+
+local function ToggleManager()
+    if ManagerEnabled then
+        DisableManager()
+    else
+        EnableManager()
+    end
+end
+
+-- ==================================================
+-- EXPORT
+-- ==================================================
+_G.YOKUDO_ManagerDrone = {
+    Enable = EnableManager,
+    Disable = DisableManager,
+    Toggle = ToggleManager,
+    IsEnabled = function() return ManagerEnabled end,
+    GetEventInfo = GetEventInfo,
+    ForceStopAll = ForceStopAll,
+    SwitchAFKToAttack = SwitchAFKToAttack,
+}
+
+print("✅ ManagerDrone Feature Loaded (Switch AFK to Attack + Safe Zone)")
