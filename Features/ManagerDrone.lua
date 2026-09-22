@@ -1,8 +1,8 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Manager Drone
 -- គ្រប់គ្រង Event → ហៅ Attack ឬ AFK
--- ✅ Check Text: "in Xm Ys" → AFK, "Event ends in" → Attack
--- ✅ Stop ពេល Disable
+-- ✅ ប្រើ ExperimentTimer + NightTimer
+-- ✅ ពេល Event ចេញ → Jump → Safe → Wait 10s → Attack
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -14,42 +14,39 @@ local Player = Players.LocalPlayer
 -- ==================================================
 local EVENT_CHECK_INTERVAL = 1
 local EVENT_SKIP_THRESHOLD = 4
-local AFK_JUMP_WAIT = 1  -- ✅ រង់ចាំ Jump ចេញពី AFK
+local NIGHT_ZONE_THRESHOLD = 10
+local AFK_JUMP_WAIT = 0.5
+local SAFE_WAIT_BEFORE_ATTACK = 10   -- ✅ រង់ចាំ 10s នៅ Safe Zone មុន Attack
 
 -- ==================================================
 -- STATE
 -- ==================================================
 local ManagerEnabled = false
-local LastEventSec = 0
-local LastEventText = ""
+local LastExpSec = 0
+local LastNightSec = 0
+local LastExpText = ""
+local LastNightText = ""
 local ManagerThread = nil
 
 -- ==================================================
--- GET EVENT INFO
--- ✅ ប្រើ ExperimentTimer.Value.Text
--- ✅ ពិនិត្យ "Event ends" vs "in"
+-- GET TIMER INFO
 -- ==================================================
-local function GetEventInfo()
+local function GetTimerInfo(TimerName)
     local Success, Value = pcall(function()
         return game:GetService("Players").LocalPlayer.PlayerGui
-            .HUD.GameHUD.BottomRight.ExperimentTimer.Value.Text
+            .HUD.GameHUD.BottomRight[TimerName].Value.Text
     end)
     if not Success or not Value then
         return 0, "", false
     end
 
-    local Text = tostring(Value)  -- "Event ends in 9m 50s" ឬ "in 9m 50s"
-
-    -- ✅ ពិនិត្យថាតើ Text មាន "Event ends"
+    local Text = tostring(Value)
     local HasEventEnds = string.find(Text, "Event ends") ~= nil
-    local IsEventActive = HasEventEnds
-
-    -- ញែក M និង S
     local M = tonumber(string.match(Text, "(%d+)m")) or 0
     local S = tonumber(string.match(Text, "(%d+)s")) or 0
     local TotalSec = M * 60 + S
 
-    return TotalSec, Text, IsEventActive
+    return TotalSec, Text, HasEventEnds
 end
 
 -- ==================================================
@@ -71,16 +68,25 @@ end
 -- ==================================================
 local function MainLoop()
     while ManagerEnabled do
-        local EventSec, EventText, IsEventActive = GetEventInfo()
+        -- ✅ អានទាំង 2 Timers
+        local ExpSec, ExpText, ExpActive = GetTimerInfo("ExperimentTimer")
+        local NightSec, NightText = GetTimerInfo("NightTimer")
 
-        local EventNotActive = not IsEventActive
-        local EventEndingSoon = IsEventActive and EventSec > 0 and EventSec <= EVENT_SKIP_THRESHOLD
-        local EventActive = IsEventActive and EventSec > EVENT_SKIP_THRESHOLD
+        -- ✅ Logic:
+        -- ExpActive = true → Event កំពុងដំណើរការ
+        -- ExpSec > 4 → Event នៅសល់ច្រើន
+        -- ExpSec <= 4 → Event ជិតចប់
+        -- NightSec <= 10 → Server Zone ជិតបិទ
 
-        print("[ManagerDrone] Text:", EventText, "| Sec:", EventSec, "| IsActive:", IsEventActive, "| NotActive:", EventNotActive, "| EndingSoon:", EventEndingSoon, "| Active:", EventActive)
+        local ServerZoneClosed = NightSec <= NIGHT_ZONE_THRESHOLD
+        local EventNotActive = not ExpActive
+        local EventEndingSoon = ExpActive and ExpSec > 0 and ExpSec <= EVENT_SKIP_THRESHOLD
+        local EventActive = ExpActive and ExpSec > EVENT_SKIP_THRESHOLD
+
+        print("[ManagerDrone] ExpSec:", ExpSec, "| NightSec:", NightSec, "| ExpActive:", ExpActive, "| ServerZoneClosed:", ServerZoneClosed, "| EventActive:", EventActive)
 
         -- ==================================================
-        -- Event មិនទាន់ចេញ (Text = "in Xm Ys") → AFK System
+        -- Event មិនទាន់ចេញ (ExpActive = false) → AFK System
         -- ==================================================
         if EventNotActive then
             if _G.YOKUDO_AttackDrone and _G.YOKUDO_AttackDrone.IsEnabled() then
@@ -93,11 +99,12 @@ local function MainLoop()
                 _G.YOKUDO_AFKSystem.Enable()
             end
         -- ==================================================
-        -- Event ជិតចប់ (Event ends in Xm Ys + Sec <= 4) → Stop Attack → AFK
+        -- Event ជិតចប់ (ExpSec <= 4) ឬ Server Zone ជិតបិទ (NightSec <= 10)
+        -- → Stop Attack → AFK
         -- ==================================================
-        elseif EventEndingSoon then
+        elseif EventEndingSoon or ServerZoneClosed then
             if _G.YOKUDO_AttackDrone and _G.YOKUDO_AttackDrone.IsEnabled() then
-                print("[ManagerDrone] Event Ending Soon (<= 4s) → Stop Attack → AFK System")
+                print("[ManagerDrone] Event Ending or Zone Closed → Stop Attack → AFK System")
                 _G.YOKUDO_AttackDrone.Stop()
             end
 
@@ -105,30 +112,41 @@ local function MainLoop()
                 _G.YOKUDO_AFKSystem.Enable()
             end
         -- ==================================================
-        -- Event កំពុងដំណើរការ (Event ends in Xm Ys + Sec > 4) → Attack
+        -- Event កំពុងដំណើរការ (ExpSec > 4) និង Server Zone បើក
+        -- → Jump → Safe → Wait 10s → Attack
         -- ==================================================
         elseif EventActive then
+            -- បើ AFK System កំពុងដំណើរការ → Jump ចេញ → Safe → Wait 10s → Attack
             if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
-                print("[ManagerDrone] Event Active → Jump Out AFK → Attack Drone")
+                print("[ManagerDrone] Event Active → Jump Out → Safe → Wait 10s → Attack")
 
-                -- ✅ Jump ចេញពី AFK មុន
                 local TreadmillPos = _G.YOKUDO_AFKSystem.GetMyTreadmillPos()
                 _G.YOKUDO_AFKSystem.JumpOutTreadmill(TreadmillPos, function()
                     task.wait(AFK_JUMP_WAIT)
                     _G.YOKUDO_AFKSystem.Disable()
-                    task.wait(0.5)
-                    if _G.YOKUDO_AttackDrone then
-                        _G.YOKUDO_AttackDrone.Start()
-                    end
+
+                    -- ✅ Fly ទៅ Safe Zone មុន
+                    _G.YOKUDO_AFKSystem.FlyTP(Vector3.new(533, 70, -366), function()
+                        print("[ManagerDrone] Safe Zone Reached → Wait 10s...")
+                        task.wait(SAFE_WAIT_BEFORE_ATTACK)  -- ✅ រង់ចាំ 10s
+                        print("[ManagerDrone] Wait Done → Start Attack Drone")
+
+                        if _G.YOKUDO_AttackDrone then
+                            _G.YOKUDO_AttackDrone.Start()
+                        end
+                    end)
                 end)
+            -- បើ AFK System មិន Enabled → Attack ភ្លាម
             elseif _G.YOKUDO_AttackDrone and not _G.YOKUDO_AttackDrone.IsEnabled() then
                 print("[ManagerDrone] Event Active → Attack Drone")
                 _G.YOKUDO_AttackDrone.Start()
             end
         end
 
-        LastEventSec = EventSec
-        LastEventText = EventText
+        LastExpSec = ExpSec
+        LastNightSec = NightSec
+        LastExpText = ExpText
+        LastNightText = NightText
         task.wait(EVENT_CHECK_INTERVAL)
     end
 
@@ -183,8 +201,8 @@ _G.YOKUDO_ManagerDrone = {
     Disable = DisableManager,
     Toggle = ToggleManager,
     IsEnabled = function() return ManagerEnabled end,
-    GetEventInfo = GetEventInfo,
+    GetTimerInfo = GetTimerInfo,
     ForceStopAll = ForceStopAll,
 }
 
-print("✅ ManagerDrone Feature Loaded (Check Text: in vs Event ends)")
+print("✅ ManagerDrone Feature Loaded (Jump → Safe → Wait 10s → Attack)")
