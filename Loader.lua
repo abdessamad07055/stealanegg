@@ -176,32 +176,45 @@ loadstring(GetScript("Tabs/Init.lua"))()
 --==================================================
 -- LOAD FEATURES
 --==================================================
+-- ✅ AntiAFK (ដំណើរការភ្លាម មិនត្រូវការ UI)
+Loading.Update(28)
+loadstring(GetScript("Features/AntiAFK.lua"))()
+
 Loading.Update(30)
 loadstring(GetScript("Features/WalkSpeed.lua"))()
 
-Loading.Update(35)
+Loading.Update(33)
 loadstring(GetScript("Features/AntiTrap.lua"))()
 
-Loading.Update(40)
+Loading.Update(36)
 loadstring(GetScript("Features/GodMode.lua"))()
 
-Loading.Update(45)
+Loading.Update(39)
 loadstring(GetScript("Features/TeleportSystem.lua"))()
 
-Loading.Update(50)
+Loading.Update(42)
 loadstring(GetScript("Features/AutoFarm.lua"))()
 
-Loading.Update(55)
+Loading.Update(45)
 loadstring(GetScript("Features/AutoAttack.lua"))()
 
-Loading.Update(57)
+-- ✅ AFKSystem (Load មុន AttackDrone + ManagerDrone)
+Loading.Update(48)
+loadstring(GetScript("Features/AFKSystem.lua"))()
+
+-- ✅ AttackDrone (កែរួច — ដក InitialFlyAndStartLoop ចេញ)
+Loading.Update(51)
 loadstring(GetScript("Features/AttackDrone.lua"))()
 
-Loading.Update(59)
+-- ✅ ManagerDrone (Load ក្រោយ AFK + Attack)
+Loading.Update(54)
+loadstring(GetScript("Features/ManagerDrone.lua"))()
+
+Loading.Update(57)
 loadstring(GetScript("Features/ManualFastClick.lua"))()
 
 -- ✅ ConfigSystem (Load After Features, Before Tabs)
-Loading.Update(60)
+Loading.Update(59)
 loadstring(GetScript("Features/ConfigSystem.lua"))()
 
 --==================================================
