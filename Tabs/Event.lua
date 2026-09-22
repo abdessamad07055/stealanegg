@@ -1,28 +1,27 @@
--- ==================================================
+--==================================================
 -- YOKUDO HUB | TAB | Event
 -- Feature: Auto Attack Drone
--- ==================================================
+--==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
 local TweenService = game:GetService("TweenService")
 
 local EventTab, EventPage = TabsManager:RegisterTab("Event", 5, "EVENT")
 
--- ==================================================
+--==================================================
 -- CONTENT
--- ==================================================
+--==================================================
 CreateSectionTitle(EventPage, "Event", 1)
 
--- ==================================================
+--==================================================
 -- FEATURE: AUTO ATTACK DRONE (Checkbox)
--- ==================================================
+--==================================================
 local ManagerHolder = Instance.new("Frame")
 ManagerHolder.Size = UDim2.new(1, 0, 0, 52)
 ManagerHolder.BackgroundTransparency = 1
 ManagerHolder.LayoutOrder = 2
 ManagerHolder.Parent = EventPage
 
--- ✅ Feature Name: Auto Attack Drone
 local ManagerLabel = Instance.new("TextLabel")
 ManagerLabel.Size = UDim2.new(1, -50, 0, 20)
 ManagerLabel.Position = UDim2.new(0, 0, 0, 2)
@@ -35,7 +34,6 @@ ManagerLabel.TextYAlignment = Enum.TextYAlignment.Center
 ManagerLabel.Font = Enum.Font.GothamBold
 ManagerLabel.Parent = ManagerHolder
 
--- ✅ Subtitle: AFK Farm Drone
 local ManagerSub = Instance.new("TextLabel")
 ManagerSub.Size = UDim2.new(1, -50, 0, 18)
 ManagerSub.Position = UDim2.new(0, 0, 0, 24)
@@ -75,6 +73,20 @@ ManagerCheck.Font = Enum.Font.GothamBold
 ManagerCheck.Visible = false
 ManagerCheck.Parent = ManagerButton
 
+--==================================================
+-- ✅ UPDATE UI FUNCTION
+--==================================================
+local function UpdateManagerUI(State)
+    ManagerCheck.Visible = State
+    if State then
+        ManagerButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+        ManagerStroke.Color = Color3.fromRGB(135, 120, 225)
+    else
+        ManagerButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+        ManagerStroke.Color = Color3.fromRGB(200, 200, 220)
+    end
+end
+
 ManagerButton.MouseButton1Click:Connect(function()
     if not _G.YOKUDO_ManagerDrone then
         warn("[YOKUDO] ManagerDrone not loaded!")
@@ -82,26 +94,59 @@ ManagerButton.MouseButton1Click:Connect(function()
     end
 
     local NewState = not _G.YOKUDO_ManagerDrone.IsEnabled()
-    ManagerCheck.Visible = NewState
+    UpdateManagerUI(NewState)
+
+    -- ✅ Save State to _G
+    _G.YOKUDO_AttackDroneEnabled = NewState
+
+    -- ✅ Call Enable/Disable
     if NewState then
-        ManagerButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-        ManagerStroke.Color = Color3.fromRGB(135, 120, 225)
         _G.YOKUDO_ManagerDrone.Enable()
     else
-        ManagerButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-        ManagerStroke.Color = Color3.fromRGB(200, 200, 220)
         _G.YOKUDO_ManagerDrone.Disable()
+    end
+
+    -- ✅ Save Config
+    if _G.YOKUDO_ConfigSystem then
+        _G.YOKUDO_ConfigSystem.Save()
     end
 end)
 
+--==================================================
+-- ✅ SYNC STATE ON LOAD
+--==================================================
 task.spawn(function()
-    task.wait(0.5)
+    task.wait(1)
     if _G.YOKUDO_ManagerDrone then
         local State = _G.YOKUDO_ManagerDrone.IsEnabled()
-        ManagerCheck.Visible = State
-        if State then
-            ManagerButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-            ManagerStroke.Color = Color3.fromRGB(135, 120, 225)
+        UpdateManagerUI(State)
+    end
+end)
+
+--==================================================
+-- ✅ REFRESH FUNCTION (សម្រាប់ ConfigSystem ហៅ)
+--==================================================
+_G.YOKUDO_RefreshEventUI = function()
+    if _G.YOKUDO_ManagerDrone then
+        local State = _G.YOKUDO_ManagerDrone.IsEnabled()
+        UpdateManagerUI(State)
+        print("[YOKUDO] Event Tab UI Refreshed | State: " .. tostring(State))
+    end
+end
+
+--==================================================
+-- ✅ PERIODIC SYNC (រាល់ 1 វិនាទី)
+--==================================================
+task.spawn(function()
+    while task.wait(1) do
+        if _G.YOKUDO_ManagerDrone then
+            local CurrentState = _G.YOKUDO_ManagerDrone.IsEnabled()
+            local UIState = ManagerCheck.Visible
+
+            if CurrentState ~= UIState then
+                UpdateManagerUI(CurrentState)
+                print("[YOKUDO] Event UI Sync | State: " .. tostring(CurrentState))
+            end
         end
     end
 end)
