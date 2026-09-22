@@ -3,7 +3,6 @@
 -- Save/Load: SelectedMethod + TeleportSpeed + AttackDroneEnabled
 -- Folder: YOKUDO-SAE
 -- File: yokudo.json
--- NOTE: Does NOT Auto-Load/Apply. Call .Load() manually.
 --==================================================
 
 local HttpService = game:GetService("HttpService")
@@ -42,7 +41,7 @@ local function FileExists(Path)
 end
 
 --==================================================
--- LOAD CONFIG (Read Only - Does NOT Apply)
+-- LOAD CONFIG
 --==================================================
 
 local function LoadConfig()
@@ -87,7 +86,7 @@ local function LoadConfig()
         Config.AttackDroneEnabled = DecodedData.AttackDroneEnabled
     end
 
-    print("[YOKUDO] Config Read | Method: " .. Config.SelectedMethod .. " | Speed: " .. tostring(Config.TeleportSpeed) .. " | Drone: " .. tostring(Config.AttackDroneEnabled))
+    print("[YOKUDO] Config Loaded | Method: " .. Config.SelectedMethod .. " | Speed: " .. tostring(Config.TeleportSpeed) .. " | Drone: " .. tostring(Config.AttackDroneEnabled))
 
     return Config
 end
@@ -138,11 +137,11 @@ local function ApplyConfig(Config)
 end
 
 --==================================================
--- ✅ NO INITIAL LOAD HERE (Removed)
+-- INITIAL LOAD
 --==================================================
--- Load will be called manually after BypassAntiCheat.lua
--- Use: _G.YOKUDO_ConfigSystem.Load()
---==================================================
+
+local LoadedConfig = LoadConfig()
+ApplyConfig(LoadedConfig)
 
 --==================================================
 -- EXPORT
@@ -160,6 +159,7 @@ _G.YOKUDO_ConfigSystem = {
         task.spawn(function()
             task.wait(0.5)
 
+            -- ✅ Auto Enable Attack Drone
             if Config.AttackDroneEnabled == true then
                 if _G.YOKUDO_ManagerDrone then
                     print("[YOKUDO] Auto Enable Attack Drone from Config")
@@ -167,6 +167,18 @@ _G.YOKUDO_ConfigSystem = {
                         _G.YOKUDO_ManagerDrone.Enable()
                     end)
                 end
+            end
+
+            task.wait(0.5)
+
+            -- ✅ Update Event Tab UI
+            if _G.YOKUDO_RefreshEventUI then
+                _G.YOKUDO_RefreshEventUI()
+            end
+
+            -- ✅ Update Setting Tab UI
+            if _G.YOKUDO_RefreshSettingUI then
+                _G.YOKUDO_RefreshSettingUI()
             end
         end)
 
@@ -196,4 +208,4 @@ _G.YOKUDO_ConfigSystem = {
     end
 }
 
-print("✅ ConfigSystem Loaded (Manual Load Mode)")
+print("✅ ConfigSystem Loaded")
