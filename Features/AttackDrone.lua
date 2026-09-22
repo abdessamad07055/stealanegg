@@ -1,8 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Attack Drone
 -- Attack ONLY Top1 (AugmentedDrone) | Top2 (ReactorDrone) | Top3 (ScrapDrone)
--- FOLLOW_SPEED = 1000 (Fast)
--- Signed X Distance + Dual Spawn Loop + Wait 2s
+-- FOLLOW_SPEED = 700
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -16,7 +15,7 @@ local Player = Players.LocalPlayer
 -- ==================================================
 local ATTACK_RANGE = 16
 local ATTACK_INTERVAL = 0.02
-local FOLLOW_SPEED = 700   -- ✅ លឿន
+local FOLLOW_SPEED = 700
 local FOLLOW_BEHIND_DISTANCE = 3
 local SHORT_TP_DISTANCE = 20
 local SPAWN_POSITION_1 = Vector3.new(2140, 77, -367)
@@ -29,11 +28,11 @@ local ARRIVE_TIMEOUT = 15
 local CONTAINER_NAME = "ScrambleLocalVisuals"
 local SEARCH_PREFIXES = { "DroneVisual_", "PersonalDrone_" }
 
--- Tier Priority (Top 1, Top 2, Top 3)
+-- Tier Priority
 local TIER_PRIORITY = {
-    ["AugmentedDrone"] = 1,   -- Top 1
-    ["ReactorDrone"] = 2,     -- Top 2
-    ["ScrapDrone"] = 3,       -- Top 3 ✅
+    ["AugmentedDrone"] = 1,
+    ["ReactorDrone"] = 2,
+    ["ScrapDrone"] = 3,
 }
 local MAX_ALLOWED_PRIORITY = 3
 
@@ -55,6 +54,7 @@ local LockCFrame = nil
 local Phase = "idle"
 local CurrentSpawnIndex = 1
 local IsFlying = false
+local SpawnLoopRunning = false
 
 -- Live Saved Stats
 local SavedStats = {
@@ -72,6 +72,7 @@ local StartFollow
 local FlyTPToPosition
 local StartAttackLoop
 local SpawnLoop
+local StopAttack
 
 -- ==================================================
 -- GET HUMANOID
@@ -91,19 +92,16 @@ local function GetBatSwingRemote()
     local Success, Remote = pcall(function()
         return ReplicatedStorage.Packages.Networking["RE/BatSwing/Trigger"]
     end)
-    if Success and Remote then
-        return Remote
-    end
+    if Success and Remote then return Remote end
     return nil
 end
 
 -- ==================================================
--- SAVE LIVE STATS
+-- SAVE / RESTORE STATS
 -- ==================================================
 local function SaveLiveStats()
     local Hum = GetHumanoid()
     if not Hum then return end
-
     SavedStats.Humanoid = Hum
     SavedStats.WalkSpeed = Hum.WalkSpeed
     SavedStats.JumpPower = Hum.JumpPower
@@ -111,34 +109,18 @@ local function SaveLiveStats()
     SavedStats.UseJumpPower = Hum.UseJumpPower
 end
 
--- ==================================================
--- RESTORE LIVE STATS
--- ==================================================
 local function RestoreLiveStats()
     local Hum = GetHumanoid()
     if not Hum then return end
-
-    if SavedStats.WalkSpeed ~= nil then
-        pcall(function() Hum.WalkSpeed = SavedStats.WalkSpeed end)
-    end
-    if SavedStats.JumpPower ~= nil then
-        pcall(function() Hum.JumpPower = SavedStats.JumpPower end)
-    end
-    if SavedStats.JumpHeight ~= nil then
-        pcall(function() Hum.JumpHeight = SavedStats.JumpHeight end)
-    end
-    if SavedStats.UseJumpPower ~= nil then
-        pcall(function() Hum.UseJumpPower = SavedStats.UseJumpPower end)
-    end
+    if SavedStats.WalkSpeed ~= nil then pcall(function() Hum.WalkSpeed = SavedStats.WalkSpeed end) end
+    if SavedStats.JumpPower ~= nil then pcall(function() Hum.JumpPower = SavedStats.JumpPower end) end
+    if SavedStats.JumpHeight ~= nil then pcall(function() Hum.JumpHeight = SavedStats.JumpHeight end) end
+    if SavedStats.UseJumpPower ~= nil then pcall(function() Hum.UseJumpPower = SavedStats.UseJumpPower end) end
 end
 
--- ==================================================
--- RE-SAVE STATS IF HUMANOID REPLACED
--- ==================================================
 local function EnsureStatsAlive()
     local Hum = GetHumanoid()
     if not Hum then return end
-
     if SavedStats.Humanoid ~= Hum then
         SavedStats.Humanoid = Hum
         SavedStats.WalkSpeed = Hum.WalkSpeed
@@ -149,17 +131,11 @@ local function EnsureStatsAlive()
 end
 
 -- ==================================================
--- CLEANUP MOVERS
+-- CLEANUP
 -- ==================================================
 local function CleanupMovers()
-    if FollowConnection then
-        FollowConnection:Disconnect()
-        FollowConnection = nil
-    end
-    if LockConnection then
-        LockConnection:Disconnect()
-        LockConnection = nil
-    end
+    if FollowConnection then FollowConnection:Disconnect() FollowConnection = nil end
+    if LockConnection then LockConnection:Disconnect() LockConnection = nil end
     if BodyVelocity then
         pcall(function()
             BodyVelocity.Velocity = Vector3.zero
@@ -169,9 +145,7 @@ local function CleanupMovers()
         BodyVelocity = nil
     end
     if BodyGyro then
-        pcall(function()
-            BodyGyro.MaxTorque = Vector3.zero
-        end)
+        pcall(function() BodyGyro.MaxTorque = Vector3.zero end)
         BodyGyro:Destroy()
         BodyGyro = nil
     end
@@ -184,14 +158,12 @@ local function CleanupMovers()
             end
         end
     end
-
     if Hum then
         pcall(function()
             Hum.PlatformStand = false
             Hum.Sit = false
         end)
     end
-
     if Root then
         pcall(function()
             Root.AssemblyLinearVelocity = Vector3.zero
@@ -204,7 +176,7 @@ local function CleanupMovers()
 end
 
 -- ==================================================
--- GET POSITION
+-- GET POSITION / LOOK VECTOR
 -- ==================================================
 local function GetPosition(Object)
     if not Object then return nil end
@@ -221,9 +193,6 @@ local function GetPosition(Object)
     return nil
 end
 
--- ==================================================
--- GET LOOK VECTOR
--- ==================================================
 local function GetLookVector(Object)
     if not Object then return Vector3.new(0, 0, -1) end
     local Part = nil
@@ -231,28 +200,22 @@ local function GetLookVector(Object)
         Part = Object.PrimaryPart or Object:FindFirstChildWhichIsA("BasePart")
         if not Part then
             for _, Desc in ipairs(Object:GetDescendants()) do
-                if Desc:IsA("BasePart") then
-                    Part = Desc
-                    break
-                end
+                if Desc:IsA("BasePart") then Part = Desc break end
             end
         end
     elseif Object:IsA("BasePart") then
         Part = Object
     end
-    if Part then
-        return Part.CFrame.LookVector
-    end
+    if Part then return Part.CFrame.LookVector end
     return Vector3.new(0, 0, -1)
 end
 
 -- ==================================================
--- FIND ALL DRONES (តាម prefix)
+-- FIND ALL DRONES
 -- ==================================================
 local function FindAllDrones()
     local Container = workspace:FindFirstChild(CONTAINER_NAME)
     if not Container then return {} end
-
     local Drones = {}
     for _, obj in ipairs(Container:GetChildren()) do
         for _, prefix in ipairs(SEARCH_PREFIXES) do
@@ -266,20 +229,15 @@ local function FindAllDrones()
 end
 
 -- ==================================================
--- GET DRONE TIER
+-- GET DRONE TIER / PRIORITY
 -- ==================================================
 local function GetDroneTier(Drone)
     if not Drone then return nil end
     local Tier = nil
-    pcall(function()
-        Tier = Drone:GetAttribute("ScrambleTier")
-    end)
+    pcall(function() Tier = Drone:GetAttribute("ScrambleTier") end)
     return Tier
 end
 
--- ==================================================
--- GET DRONE PRIORITY
--- ==================================================
 local function GetDronePriority(Drone)
     local Tier = GetDroneTier(Drone)
     if not Tier then return nil end
@@ -287,21 +245,18 @@ local function GetDronePriority(Drone)
 end
 
 -- ==================================================
--- FIND BEST DRONE (ONLY Top 1, 2, 3)
+-- FIND BEST DRONE
 -- ==================================================
 local function FindBestDrone()
     local Drones = FindAllDrones()
     if #Drones == 0 then return nil end
-
     local CurrentSpawn = (CurrentSpawnIndex == 1) and SPAWN_POSITION_1 or SPAWN_POSITION_2
-
     local Best = nil
     local BestPriority = math.huge
     local BestDist = math.huge
 
     for _, Drone in ipairs(Drones) do
         local Priority = GetDronePriority(Drone)
-
         if Priority and Priority <= MAX_ALLOWED_PRIORITY then
             local Pos = GetPosition(Drone)
             if Pos then
@@ -314,17 +269,15 @@ local function FindBestDrone()
             end
         end
     end
-
     return Best, BestPriority, BestDist
 end
 
 -- ==================================================
--- GET BEHIND POSITION (3 studs ពីក្រោយ)
+-- GET BEHIND POSITION
 -- ==================================================
 local function GetBehindPosition(Target)
     local TargetPos = GetPosition(Target)
     if not TargetPos then return nil end
-
     local LookVector = GetLookVector(Target)
     local BehindPos = TargetPos - (LookVector * FOLLOW_BEHIND_DISTANCE)
     BehindPos = Vector3.new(BehindPos.X, TargetPos.Y + 1, BehindPos.Z)
@@ -336,26 +289,17 @@ end
 -- ==================================================
 local function StartLock(Position, LookAt)
     LockCFrame = CFrame.new(Position, LookAt or (Position + Vector3.new(0, 0, -1)))
-
-    if LockConnection then
-        LockConnection:Disconnect()
-    end
-
+    if LockConnection then LockConnection:Disconnect() end
     IsLocked = true
 
     LockConnection = RunService.Heartbeat:Connect(function()
         if not AttackDroneEnabled then
-            if LockConnection then
-                LockConnection:Disconnect()
-                LockConnection = nil
-            end
+            if LockConnection then LockConnection:Disconnect() LockConnection = nil end
             IsLocked = false
             return
         end
-
         local Hum, Root = GetHumanoid()
         if not Root then return end
-
         if CurrentTarget and CurrentTarget.Parent then
             local NewBehind = GetBehindPosition(CurrentTarget)
             local NewTargetPos = GetPosition(CurrentTarget)
@@ -363,7 +307,6 @@ local function StartLock(Position, LookAt)
                 LockCFrame = CFrame.new(NewBehind, NewTargetPos)
             end
         end
-
         Root.CFrame = LockCFrame
         Root.AssemblyLinearVelocity = Vector3.zero
         Root.AssemblyAngularVelocity = Vector3.zero
@@ -371,11 +314,10 @@ local function StartLock(Position, LookAt)
 end
 
 -- ==================================================
--- FOLLOW BEHIND (Distance-based + Short TP 20)
+-- FOLLOW BEHIND
 -- ==================================================
 function StartFollow()
     CleanupMovers()
-
     local Hum, Root = GetHumanoid()
     if not Hum or not Root then return end
     if Hum.Health <= 0 then return end
@@ -398,39 +340,17 @@ function StartFollow()
     BodyGyro.Parent = Root
 
     FollowConnection = RunService.Heartbeat:Connect(function()
-        if not AttackDroneEnabled then
-            CleanupMovers()
-            return
-        end
-
+        if not AttackDroneEnabled then CleanupMovers() return end
         local Hum2, Root2 = GetHumanoid()
-        if not Hum2 or not Root2 then
-            CleanupMovers()
-            return
-        end
+        if not Hum2 or not Root2 then CleanupMovers() return end
         if Hum2.Health <= 0 then return end
-
-        if not BodyVelocity or not BodyGyro then
-            CleanupMovers()
-            return
-        end
-
-        if not CurrentTarget or not CurrentTarget.Parent then
-            CleanupMovers()
-            return
-        end
+        if not BodyVelocity or not BodyGyro then CleanupMovers() return end
+        if not CurrentTarget or not CurrentTarget.Parent then CleanupMovers() return end
 
         local TargetPos = GetPosition(CurrentTarget)
-        if not TargetPos then
-            CleanupMovers()
-            return
-        end
-
+        if not TargetPos then CleanupMovers() return end
         local BehindPos = GetBehindPosition(CurrentTarget)
-        if not BehindPos then
-            CleanupMovers()
-            return
-        end
+        if not BehindPos then CleanupMovers() return end
 
         local CurrentPos = Root2.Position
         local Direction = BehindPos - CurrentPos
@@ -438,11 +358,9 @@ function StartFollow()
 
         if TotalDist <= SHORT_TP_DISTANCE then
             CleanupMovers()
-
             Root2.CFrame = CFrame.new(BehindPos, TargetPos)
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
-
             StartLock(BehindPos, TargetPos)
             return
         end
@@ -460,14 +378,8 @@ function FlyTPToPosition(Destination, Callback)
     IsFlying = true
 
     local Hum, Root = GetHumanoid()
-    if not Hum or not Root then
-        IsFlying = false
-        return
-    end
-    if Hum.Health <= 0 then
-        IsFlying = false
-        return
-    end
+    if not Hum or not Root then IsFlying = false if Callback then Callback() end return end
+    if Hum.Health <= 0 then IsFlying = false if Callback then Callback() end return end
 
     Hum.PlatformStand = true
 
@@ -489,25 +401,11 @@ function FlyTPToPosition(Destination, Callback)
     local StartTime = tick()
 
     FollowConnection = RunService.Heartbeat:Connect(function()
-        if not AttackDroneEnabled then
-            CleanupMovers()
-            IsFlying = false
-            return
-        end
-
+        if not AttackDroneEnabled then CleanupMovers() IsFlying = false return end
         local Hum2, Root2 = GetHumanoid()
-        if not Hum2 or not Root2 then
-            CleanupMovers()
-            IsFlying = false
-            return
-        end
+        if not Hum2 or not Root2 then CleanupMovers() IsFlying = false return end
         if Hum2.Health <= 0 then return end
-
-        if not BodyVelocity or not BodyGyro then
-            CleanupMovers()
-            IsFlying = false
-            return
-        end
+        if not BodyVelocity or not BodyGyro then CleanupMovers() IsFlying = false return end
 
         local CurrentPos = Root2.Position
         local Direction = Destination - CurrentPos
@@ -516,14 +414,9 @@ function FlyTPToPosition(Destination, Callback)
         if TotalDist <= 2 then
             CleanupMovers()
             IsFlying = false
-
             Root2.CFrame = CFrame.new(Destination)
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
-
-            Phase = "locked_spawn"
-            StartLock(Destination)
-
             if Callback then Callback() end
             return
         end
@@ -541,95 +434,70 @@ function FlyTPToPosition(Destination, Callback)
 end
 
 -- ==================================================
--- SPAWN LOOP: Fly Spawn 1 → Wait 2s → Check → Spawn 2 → Wait 2s → Check → Loop
+-- STOP ATTACK
+-- ==================================================
+function StopAttack()
+    print("[AttackDrone] Stop Attack")
+    CleanupMovers()
+    CurrentTarget = nil
+    CurrentTargetPriority = nil
+    SpawnLoopRunning = false
+end
+
+-- ==================================================
+-- SPAWN LOOP
 -- ==================================================
 function SpawnLoop()
-    while AttackDroneEnabled do
-        local CurrentSpawn = (CurrentSpawnIndex == 1) and SPAWN_POSITION_1 or SPAWN_POSITION_2
+    if SpawnLoopRunning then return end
+    SpawnLoopRunning = true
 
-        if CurrentTarget and CurrentTarget.Parent then
-            task.wait(0.5)
-            continue
-        end
+    task.spawn(function()
+        while AttackDroneEnabled do
+            local CurrentSpawn = (CurrentSpawnIndex == 1) and SPAWN_POSITION_1 or SPAWN_POSITION_2
 
-        print("[YOKUDO] Flying to Spawn " .. CurrentSpawnIndex)
-        Phase = "fly_to_spawn_" .. CurrentSpawnIndex
-
-        local Arrived = false
-
-        FlyTPToPosition(CurrentSpawn, function()
-            Arrived = true
-            Phase = "locked_spawn_" .. CurrentSpawnIndex
-        end)
-
-        local WaitTime = 0
-        while AttackDroneEnabled and not Arrived and WaitTime < ARRIVE_TIMEOUT do
-            task.wait(0.1)
-            WaitTime = WaitTime + 0.1
-        end
-
-        if not AttackDroneEnabled then break end
-
-        print("[YOKUDO] Arrived at Spawn " .. CurrentSpawnIndex .. " → Wait " .. SPAWN_WAIT_TIME .. "s")
-        task.wait(SPAWN_WAIT_TIME)
-
-        if not AttackDroneEnabled then break end
-
-        -- ពិនិត្យថាមាន Mob Top 1/2/3 ទេ
-        local Found = FindBestDrone()
-        if Found and Found.Parent then
-            print("[YOKUDO] Found Mob Top " .. tostring(GetDronePriority(Found)) .. " at Spawn " .. CurrentSpawnIndex .. " → Attack")
-            CurrentTarget = Found
-            Phase = "following"
-            StartFollow()
-            while AttackDroneEnabled and CurrentTarget and CurrentTarget.Parent do
+            if CurrentTarget and CurrentTarget.Parent then
                 task.wait(0.5)
+                continue
             end
-            print("[YOKUDO] Mob Cleared → Return to Spawn 1")
-            CurrentSpawnIndex = 1
-        else
-            print("[YOKUDO] No Top 1/2/3 Mob at Spawn " .. CurrentSpawnIndex .. " → Switch")
-            CurrentSpawnIndex = (CurrentSpawnIndex == 1) and 2 or 1
+
+            print("[AttackDrone] Flying to Spawn " .. CurrentSpawnIndex)
+
+            local Arrived = false
+            FlyTPToPosition(CurrentSpawn, function() Arrived = true end)
+
+            local WaitTime = 0
+            while AttackDroneEnabled and not Arrived and WaitTime < ARRIVE_TIMEOUT do
+                task.wait(0.1)
+                WaitTime = WaitTime + 0.1
+            end
+
+            if not AttackDroneEnabled then break end
+            task.wait(SPAWN_WAIT_TIME)
+            if not AttackDroneEnabled then break end
+
+            local Found = FindBestDrone()
+            if Found and Found.Parent then
+                print("[AttackDrone] Found Mob Top " .. tostring(GetDronePriority(Found)) .. " at Spawn " .. CurrentSpawnIndex)
+                CurrentTarget = Found
+                StartFollow()
+                while AttackDroneEnabled and CurrentTarget and CurrentTarget.Parent do
+                    task.wait(0.5)
+                end
+                print("[AttackDrone] Mob Cleared → Return to Spawn 1")
+                CurrentSpawnIndex = 1
+            else
+                print("[AttackDrone] No Top 1/2/3 Mob at Spawn " .. CurrentSpawnIndex .. " → Switch")
+                CurrentSpawnIndex = (CurrentSpawnIndex == 1) and 2 or 1
+            end
+
+            task.wait(0.2)
         end
-
-        task.wait(0.2)
-    end
+        SpawnLoopRunning = false
+    end)
 end
 
 -- ==================================================
--- INITIAL FLY: Signed X Distance from Point 1
--- ==================================================
-local function InitialFlyAndStartLoop()
-    local Hum, Root = GetHumanoid()
-    if not Root then return end
-
-    local PlayerPos = Root.Position
-    local PlayerToPoint1Signed = math.floor(PlayerPos.X - POINT_1.X)
-
-    print("========================================")
-    print("[YOKUDO] Initial Fly Decision (Signed X)")
-    print("  Player Pos:                       ", PlayerPos)
-    print("  Signed (Player.X - Point1.X):     ", PlayerToPoint1Signed)
-    print("========================================")
-
-    if PlayerToPoint1Signed > 0 then
-        print("[YOKUDO] → Signed > 0 (Player in FRONT) → Fly to Spawn 1")
-        CurrentSpawnIndex = 1
-        SpawnLoop()
-    else
-        print("[YOKUDO] → Signed <= 0 (Player at/behind) → Fly to Safe first")
-        Phase = "fly_to_safe"
-        FlyTPToPosition(SAFE_ZONE, function()
-            task.wait(SAFE_WAIT_TIME)
-            print("[YOKUDO] Safe Reached → Start Spawn Loop")
-            CurrentSpawnIndex = 1
-            SpawnLoop()
-        end)
-    end
-end
-
--- ==================================================
--- FIRE REMOTE AT DRONE
+-- FIRE REMOTE
 -- ==================================================
 local function FireAtDrone(Drone)
     if not Drone or not Drone.Parent then return end
@@ -658,24 +526,17 @@ local function FireAtDrone(Drone)
     TraceSequence = TraceSequence + 1
     local TraceId = tostring(Player.UserId) .. ":" .. tostring(TraceSequence) .. ":" .. tostring(math.floor(workspace:GetServerTimeNow() * 1000))
 
-    pcall(function()
-        Remote:FireServer(Drone, TraceId)
-    end)
+    pcall(function() Remote:FireServer(Drone, TraceId) end)
 end
 
 -- ==================================================
--- MAIN ATTACK LOOP (Dynamic Priority Switching)
+-- MAIN ATTACK LOOP
 -- ==================================================
 function StartAttackLoop()
-    if AttackConnection then
-        AttackConnection:Disconnect()
-        AttackConnection = nil
-    end
+    if AttackConnection then AttackConnection:Disconnect() AttackConnection = nil end
 
     AttackConnection = RunService.Heartbeat:Connect(function()
         if not AttackDroneEnabled then return end
-
-        -- បើកំពុង Fly → មិនធ្វើអ្វីទេ
         if IsFlying then return end
 
         local Hum, Root = GetHumanoid()
@@ -689,26 +550,22 @@ function StartAttackLoop()
             if NewTarget then
                 CurrentTarget = NewTarget
                 CurrentTargetPriority = NewPriority
-                Phase = "following"
                 StartFollow()
             end
             return
         end
 
-        -- Dynamic Priority Check
         local CurrentPriority = GetDronePriority(CurrentTarget)
         local BestDrone, BestPriority = FindBestDrone()
 
         if BestDrone and BestPriority and CurrentPriority and BestPriority < CurrentPriority then
-            print("[YOKUDO] Higher Priority Detected! Switching...")
+            print("[AttackDrone] Higher Priority Detected! Switching...")
             CurrentTarget = BestDrone
             CurrentTargetPriority = BestPriority
-            Phase = "following"
             StartFollow()
             return
         end
 
-        -- Attack
         local now = tick()
         if now - LastFire >= ATTACK_INTERVAL then
             LastFire = now
@@ -718,9 +575,9 @@ function StartAttackLoop()
 end
 
 -- ==================================================
--- ENABLE / DISABLE / TOGGLE
+-- START / STOP (ហៅដោយ ManagerDrone)
 -- ==================================================
-local function EnableAttackDrone()
+local function StartAttack()
     if AttackDroneEnabled then return end
     AttackDroneEnabled = true
 
@@ -732,28 +589,27 @@ local function EnableAttackDrone()
 
     StartAttackLoop()
 
-    task.spawn(function()
-        InitialFlyAndStartLoop()
+    -- Fly ទៅ Safe Zone មុន → បន្ទាប់មក Spawn Loop
+    FlyTPToPosition(SAFE_ZONE, function()
+        task.wait(SAFE_WAIT_TIME)
+        SpawnLoop()
     end)
 
-    print("[YOKUDO] Attack Drone: ON (Top1/2/3 Only + Speed 1000)")
+    print("[AttackDrone] Attack Drone: ON")
 end
 
-local function DisableAttackDrone()
+local function StopAttackDrone()
     if not AttackDroneEnabled then return end
     AttackDroneEnabled = false
 
-    if AttackConnection then
-        AttackConnection:Disconnect()
-        AttackConnection = nil
-    end
+    if AttackConnection then AttackConnection:Disconnect() AttackConnection = nil end
 
     CleanupMovers()
     CurrentTarget = nil
     CurrentTargetPriority = nil
-    Phase = "idle"
     CurrentSpawnIndex = 1
     IsFlying = false
+    SpawnLoopRunning = false
 
     RestoreLiveStats()
 
@@ -761,15 +617,7 @@ local function DisableAttackDrone()
         _G.YOKUDO_AutoAttack.DisableAutoEquip()
     end
 
-    print("[YOKUDO] Attack Drone: OFF")
-end
-
-local function ToggleAttackDrone()
-    if AttackDroneEnabled then
-        DisableAttackDrone()
-    else
-        EnableAttackDrone()
-    end
+    print("[AttackDrone] Attack Drone: OFF")
 end
 
 -- ==================================================
@@ -779,13 +627,6 @@ Player.CharacterAdded:Connect(function()
     if AttackDroneEnabled then
         task.wait(1)
         SaveLiveStats()
-        if _G.YOKUDO_AutoAttack then
-            _G.YOKUDO_AutoAttack.EnableAutoEquip()
-        end
-        StartAttackLoop()
-        task.spawn(function()
-            InitialFlyAndStartLoop()
-        end)
     end
 end)
 
@@ -793,14 +634,16 @@ end)
 -- EXPORT
 -- ==================================================
 _G.YOKUDO_AttackDrone = {
-    Enable = EnableAttackDrone,
-    Disable = DisableAttackDrone,
-    Toggle = ToggleAttackDrone,
+    Start = StartAttack,
+    Stop = StopAttackDrone,
+    Enable = StartAttack,
+    Disable = StopAttackDrone,
+    Toggle = function()
+        if AttackDroneEnabled then StopAttackDrone() else StartAttack() end
+    end,
     IsEnabled = function() return AttackDroneEnabled end,
-    GetPhase = function() return Phase end,
-    GetCurrentTarget = function() return CurrentTarget end,
-    GetCurrentPriority = function() return CurrentTargetPriority end,
-    GetCurrentSpawnIndex = function() return CurrentSpawnIndex end,
+    StopAttack = StopAttack,
+    SpawnLoop = SpawnLoop,
     FindAllDrones = FindAllDrones,
     FindBestDrone = FindBestDrone,
     GetDronePriority = GetDronePriority,
@@ -815,4 +658,4 @@ _G.YOKUDO_AttackDrone = {
     FOLLOW_SPEED = FOLLOW_SPEED
 }
 
-print("✅ AttackDrone Feature Loaded (Top1/2/3 Only + Speed 1000)")
+print("✅ AttackDrone Feature Loaded")
