@@ -1,102 +1,149 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Anti AFK
--- ការពារ Roblox ពីការ Kick ពេល AFK (20 នាទី)
--- ដំណើរការភ្លាមពេល Load
+-- Bypass Game Anti-AFK ដោយប្រើ VirtualInputManager
+-- បញ្ជូន Input រាល់ 10 នាទី (600 វិនាទី)
 -- ==================================================
 
 local Players = game:GetService("Players")
-local VirtualUser = game:GetService("VirtualUser")
 local RunService = game:GetService("RunService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local UserInputService = game:GetService("UserInputService")
 
 local Player = Players.LocalPlayer
+
+-- ==================================================
+-- SETTINGS
+-- ==================================================
+local INPUT_INTERVAL = 600         -- ✅ រាល់ 10 នាទី (600 វិនាទី)
+local INPUT_VARIATION = 60         -- Random បន្ថែម 0-60s
+local USE_MOUSE_MOVE = true
+local USE_MOUSE_CLICK = true
+local USE_KEYBOARD = true
 
 -- ==================================================
 -- STATE
 -- ==================================================
 local AntiAFKEnabled = true
-local IdleConnection = nil
-local HeartbeatConnection = nil
-local LastActivity = tick()
+local InputThread = nil
+local LastInputTime = tick()
 
 -- ==================================================
--- ANTI AFK METHODS
+-- SEND MOUSE MOVE
 -- ==================================================
+local function SendMouseMove()
+    pcall(function()
+        local ViewportSize = workspace.CurrentCamera.ViewportSize
+        local RandomX = math.random(1, math.floor(ViewportSize.X))
+        local RandomY = math.random(1, math.floor(ViewportSize.Y))
 
--- Method 1: Player.Idled Event (Main)
-local function SetupIdledConnection()
-    if IdleConnection then
-        IdleConnection:Disconnect()
-        IdleConnection = nil
-    end
-
-    IdleConnection = Player.Idled:Connect(function()
-        if not AntiAFKEnabled then return end
-
-        print("[AntiAFK] Idle detected! Sending VirtualUser input...")
-
-        -- ប្រើ VirtualUser ដើម្បី "ចុច" ជំនួស Player
-        pcall(function()
-            VirtualUser:CaptureController()
-            VirtualUser:ClickButton2(Vector2.new())
-        end)
-
-        LastActivity = tick()
+        VirtualInputManager:SendMouseMoveEvent(RandomX, RandomY, game)
     end)
 end
 
--- Method 2: Heartbeat Auto Click (Backup)
-local function SetupHeartbeatLoop()
-    if HeartbeatConnection then
-        HeartbeatConnection:Disconnect()
-        HeartbeatConnection = nil
+-- ==================================================
+-- SEND MOUSE CLICK
+-- ==================================================
+local function SendMouseClick()
+    pcall(function()
+        local ViewportSize = workspace.CurrentCamera.ViewportSize
+        local RandomX = math.random(1, math.floor(ViewportSize.X))
+        local RandomY = math.random(1, math.floor(ViewportSize.Y))
+
+        VirtualInputManager:SendMouseButtonEvent(RandomX, RandomY, 0, true, game, 1)
+        task.wait(0.05)
+        VirtualInputManager:SendMouseButtonEvent(RandomX, RandomY, 0, false, game, 1)
+    end)
+end
+
+-- ==================================================
+-- SEND KEYBOARD PRESS
+-- ==================================================
+local function SendKeyboardPress()
+    pcall(function()
+        local KeyCode = Enum.KeyCode.Space
+        VirtualInputManager:SendKeyEvent(true, KeyCode, false, game)
+        task.wait(0.05)
+        VirtualInputManager:SendKeyEvent(false, KeyCode, false, game)
+    end)
+end
+
+-- ==================================================
+-- MAIN INPUT LOOP
+-- ==================================================
+local function StartInputLoop()
+    if InputThread then
+        pcall(function() task.cancel(InputThread) end)
+        InputThread = nil
     end
 
-    local Counter = 0
-    HeartbeatConnection = RunService.Heartbeat:Connect(function()
-        if not AntiAFKEnabled then return end
+    InputThread = task.spawn(function()
+        while AntiAFKEnabled do
+            local WaitTime = INPUT_INTERVAL + math.random(0, INPUT_VARIATION)
+            print("[AntiAFK] Next Input in", WaitTime, "seconds")
+            task.wait(WaitTime)
 
-        Counter = Counter + 1
-        if Counter >= 300 then -- រាល់ ~5s
-            Counter = 0
+            if not AntiAFKEnabled then break end
 
-            -- ប្រើ VirtualUser ដើម្បីរក្សា Activity
-            pcall(function()
-                VirtualUser:CaptureController()
-                VirtualUser:ClickButton2(Vector2.new())
-            end)
+            print("[AntiAFK] Sending Real Input...")
 
-            LastActivity = tick()
+            if USE_MOUSE_MOVE then
+                SendMouseMove()
+                task.wait(0.1)
+            end
+
+            if USE_MOUSE_CLICK then
+                SendMouseClick()
+                task.wait(0.1)
+            end
+
+            if USE_KEYBOARD then
+                SendKeyboardPress()
+            end
+
+            LastInputTime = tick()
         end
     end)
 end
+
+-- ==================================================
+-- PLAYER IDLED EVENT (Backup)
+-- ==================================================
+local IdleConnection = Player.Idled:Connect(function()
+    if not AntiAFKEnabled then return end
+
+    print("[AntiAFK] Player Idled! Sending Input...")
+
+    SendMouseMove()
+    task.wait(0.1)
+    SendMouseClick()
+    task.wait(0.1)
+    SendKeyboardPress()
+
+    LastInputTime = tick()
+end)
 
 -- ==================================================
 -- ENABLE / DISABLE
 -- ==================================================
 local function EnableAntiAFK()
     AntiAFKEnabled = true
-    SetupIdledConnection()
-    SetupHeartbeatLoop()
-    print("[AntiAFK] Anti AFK: ON")
+    StartInputLoop()
+    print("[AntiAFK] Anti AFK: ON (Every 10 minutes)")
 end
 
 local function DisableAntiAFK()
     AntiAFKEnabled = false
 
-    if IdleConnection then
-        IdleConnection:Disconnect()
-        IdleConnection = nil
-    end
-    if HeartbeatConnection then
-        HeartbeatConnection:Disconnect()
-        HeartbeatConnection = nil
+    if InputThread then
+        pcall(function() task.cancel(InputThread) end)
+        InputThread = nil
     end
 
     print("[AntiAFK] Anti AFK: OFF")
 end
 
 -- ==================================================
--- AUTO-START ON LOAD (✅ ដំណើរការភ្លាម)
+-- AUTO-START ON LOAD
 -- ==================================================
 EnableAntiAFK()
 
@@ -107,7 +154,10 @@ _G.YOKUDO_AntiAFK = {
     Enable = EnableAntiAFK,
     Disable = DisableAntiAFK,
     IsEnabled = function() return AntiAFKEnabled end,
-    GetLastActivity = function() return LastActivity end,
+    GetLastInputTime = function() return LastInputTime end,
+    SendMouseMove = SendMouseMove,
+    SendMouseClick = SendMouseClick,
+    SendKeyboardPress = SendKeyboardPress,
 }
 
-print("✅ AntiAFK Feature Loaded (Auto-Start)")
+print("✅ AntiAFK Feature Loaded (Every 10 minutes)")
