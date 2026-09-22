@@ -219,7 +219,16 @@ SpeedStroke.Thickness = 1
 SpeedStroke.Transparency = 0.3
 SpeedStroke.Parent = SpeedTextBox
 
+-- ✅ Flag: User កំពុង Edit
+local IsEditingSpeed = false
+
+SpeedTextBox.Focused:Connect(function()
+    IsEditingSpeed = true
+end)
+
 SpeedTextBox.FocusLost:Connect(function()
+    IsEditingSpeed = false
+
     local Value = tonumber(SpeedTextBox.Text)
 
     if Value then
@@ -239,7 +248,6 @@ SpeedTextBox.FocusLost:Connect(function()
         print("[YOKUDO] Teleport Speed: " .. tostring(Value))
     else
         SpeedTextBox.Text = "300"
-
         _G.YOKUDO_TeleportSpeed = 300
 
         if _G.YOKUDO_TeleportSystem then
@@ -792,39 +800,30 @@ AntiAFKCheckButton.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- ✅ REFRESH FUNCTION (សម្រាប់ ConfigSystem ហៅ)
+-- ✅ SYNC ON LOAD (Only Once - After Setting Load)
 --==================================================
-_G.YOKUDO_RefreshSettingUI = function()
+task.spawn(function()
+    task.wait(0.5)
+
     -- ✅ Sync Dropdown
     if _G.YOKUDO_SelectedMethod then
         SelectedMethod = _G.YOKUDO_SelectedMethod
         DropdownBtn.Text = SelectedMethod .. " ▼"
     end
+
     -- ✅ Sync Speed
     if _G.YOKUDO_TeleportSpeed then
         SpeedTextBox.Text = tostring(_G.YOKUDO_TeleportSpeed)
     end
+
     -- ✅ Sync Anti AFK
     if _G.YOKUDO_AntiAFK then
-        local State = _G.YOKUDO_AntiAFK.IsEnabled()
-        AntiAFKEnabled = State
-        AntiAFKCheck.Visible = State
-        if State then
+        if _G.YOKUDO_AntiAFK.IsEnabled() then
+            AntiAFKEnabled = true
+            AntiAFKCheck.Visible = true
             AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
             AntiAFKStroke.Color = Color3.fromRGB(135, 120, 225)
-        else
-            AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-            AntiAFKStroke.Color = Color3.fromRGB(200, 200, 220)
         end
-    end
-    print("[YOKUDO] Setting Tab UI Refreshed")
-end
-
--- ✅ Sync ពេល Load ដំបូង
-task.spawn(function()
-    task.wait(0.5)
-    if _G.YOKUDO_RefreshSettingUI then
-        _G.YOKUDO_RefreshSettingUI()
     end
 end)
 
