@@ -129,7 +129,6 @@ local function CreateOption(Name, Order)
 
         _G.YOKUDO_SelectedMethod = Name
 
-        -- ✅ Save Config
         if _G.YOKUDO_ConfigSystem then
             _G.YOKUDO_ConfigSystem.Save()
         end
@@ -157,7 +156,6 @@ DropdownBtn.MouseButton1Click:Connect(function()
     DropdownList.Visible = not DropdownList.Visible
 end)
 
--- ✅ Only set default if not already loaded from Config
 if _G.YOKUDO_SelectedMethod == nil then
     _G.YOKUDO_SelectedMethod = "TeleportFly"
 end
@@ -197,7 +195,6 @@ SpeedTitle.Font = Enum.Font.Gotham
 SpeedTitle.ZIndex = 2
 SpeedTitle.Parent = SpeedHolder
 
--- ✅ Read from _G (loaded from Config)
 local InitialSpeed = _G.YOKUDO_TeleportSpeed or 300
 
 local SpeedTextBox = Instance.new("TextBox")
@@ -236,7 +233,6 @@ SpeedTextBox.FocusLost:Connect(function()
             _G.YOKUDO_TeleportSystem.SetSpeed(Value)
         end
 
-        -- ✅ Save Config
         if _G.YOKUDO_ConfigSystem then
             _G.YOKUDO_ConfigSystem.Save()
         end
@@ -251,14 +247,12 @@ SpeedTextBox.FocusLost:Connect(function()
             _G.YOKUDO_TeleportSystem.SetSpeed(300)
         end
 
-        -- ✅ Save Config
         if _G.YOKUDO_ConfigSystem then
             _G.YOKUDO_ConfigSystem.Save()
         end
     end
 end)
 
--- ✅ Only set default if not already loaded from Config
 if _G.YOKUDO_TeleportSpeed == nil then
     _G.YOKUDO_TeleportSpeed = 300
 end
@@ -823,6 +817,48 @@ task.spawn(function()
             AntiAFKCheck.Visible = true
             AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
             AntiAFKStroke.Color = Color3.fromRGB(135, 120, 225)
+        end
+    end
+end)
+
+--==================================================
+-- ✅ PERIODIC SYNC (រាល់ 1 វិនាទី) - សម្រាប់ Config Load ក្រោយ
+--==================================================
+task.spawn(function()
+    while task.wait(1) do
+        -- ✅ Sync Dropdown Method
+        if _G.YOKUDO_SelectedMethod then
+            local ExpectedText = _G.YOKUDO_SelectedMethod .. " ▼"
+            if DropdownBtn.Text ~= ExpectedText then
+                SelectedMethod = _G.YOKUDO_SelectedMethod
+                DropdownBtn.Text = ExpectedText
+                print("[YOKUDO] Setting UI Sync | Method: " .. SelectedMethod)
+            end
+        end
+
+        -- ✅ Sync Teleport Speed
+        if _G.YOKUDO_TeleportSpeed then
+            local CurrentValue = tonumber(SpeedTextBox.Text)
+            if CurrentValue ~= _G.YOKUDO_TeleportSpeed then
+                SpeedTextBox.Text = tostring(_G.YOKUDO_TeleportSpeed)
+                print("[YOKUDO] Setting UI Sync | Speed: " .. tostring(_G.YOKUDO_TeleportSpeed))
+            end
+        end
+
+        -- ✅ Sync Anti AFK
+        if _G.YOKUDO_AntiAFK then
+            local CurrentState = _G.YOKUDO_AntiAFK.IsEnabled()
+            if AntiAFKCheck.Visible ~= CurrentState then
+                AntiAFKEnabled = CurrentState
+                AntiAFKCheck.Visible = CurrentState
+                if CurrentState then
+                    AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+                    AntiAFKStroke.Color = Color3.fromRGB(135, 120, 225)
+                else
+                    AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+                    AntiAFKStroke.Color = Color3.fromRGB(200, 200, 220)
+                end
+            end
         end
     end
 end)
