@@ -4,6 +4,7 @@
 -- ✅ Event ចេញ → Stop AFK → Jump Out → Safe Zone → Call Attack
 -- ✅ Event Sec <= 10 → Stop Attack → Call AFK
 -- ✅ Stop ពេល Disable
+-- ✅ Restart ពេល Character Added
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -14,7 +15,7 @@ local Player = Players.LocalPlayer
 -- SETTINGS
 -- ==================================================
 local EVENT_CHECK_INTERVAL = 1
-local EVENT_STOP_ATTACK_THRESHOLD = 10   -- ✅ ពេល Event <= 10s → Stop Attack → AFK
+local EVENT_STOP_ATTACK_THRESHOLD = 10
 local SAFE_WAIT_TIME = 1
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 
@@ -112,7 +113,6 @@ local function SwitchAFKToAttack()
         print("[ManagerDrone] Fly to Safe Zone...")
         local Hum, Root = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid"), Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
         if Root then
-            -- ប្រើ FlyTP ពី AFKSystem
             if _G.YOKUDO_AFKSystem then
                 _G.YOKUDO_AFKSystem.FlyTP(SAFE_ZONE, function()
                     task.wait(SAFE_WAIT_TIME)
@@ -234,6 +234,30 @@ local function ToggleManager()
         EnableManager()
     end
 end
+
+-- ==================================================
+-- AUTO RE-APPLY ON CHARACTER ADDED (✅ ថ្មី)
+-- ==================================================
+Player.CharacterAdded:Connect(function(Char)
+    if ManagerEnabled then
+        print("[ManagerDrone] Character Added → Restarting Manager...")
+        task.wait(1)
+
+        -- Reset State
+        LastEventSec = 0
+        LastEventText = ""
+
+        -- Restart Thread
+        if ManagerThread then
+            pcall(function() task.cancel(ManagerThread) end)
+            ManagerThread = nil
+        end
+
+        ManagerThread = task.spawn(function() MainLoop() end)
+
+        print("[ManagerDrone] ✅ Re-applied on new Character")
+    end
+end)
 
 -- ==================================================
 -- EXPORT
