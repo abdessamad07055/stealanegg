@@ -3,6 +3,7 @@
 -- រក Plot + Treadmill → Fly TP → Jump Out
 -- ✅ Fly ធម្មតា → Stop ភ្លាម → មិន Lock
 -- ✅ JumpOut រហូតដល់ Dist > 5
+-- ✅ Restart ពេល Character Added
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -179,7 +180,6 @@ local function FlyTP(Destination, Callback)
 
         if TotalDist <= 2 then
             CleanupMovers()
-            -- ✅ Stop ភ្លាម + Reset មិន Lock
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
             if Callback then Callback() end
@@ -278,7 +278,6 @@ local function EnableAFK()
         return
     end
 
-    -- ✅ Fly to Safe Zone → Wait → Fly to Treadmill
     print("[AFK] Fly to Safe Zone first")
     FlyTP(SAFE_ZONE, function()
         task.wait(SAFE_WAIT_TIME)
@@ -311,6 +310,38 @@ local function DisableAFK()
 
     print("[AFK] AFK System: OFF")
 end
+
+-- ==================================================
+-- AUTO RE-APPLY ON CHARACTER ADDED (✅ ថ្មី)
+-- ==================================================
+Player.CharacterAdded:Connect(function(Char)
+    if AFKEnabled then
+        print("[AFK] Character Added → Restarting AFK...")
+        task.wait(1)
+
+        -- Reset State
+        CleanupMovers()
+        if DistCheckThread then
+            pcall(function() task.cancel(DistCheckThread) end)
+            DistCheckThread = nil
+        end
+
+        -- Restart AFK
+        MyPlot, MyTreadmill = FindMyPlotAndTreadmill()
+        if MyTreadmill then
+            MyTreadmillPos = MyTreadmill.Position
+            print("[AFK] Re-fly to Safe Zone first")
+            FlyTP(SAFE_ZONE, function()
+                task.wait(SAFE_WAIT_TIME)
+                FlyTP(MyTreadmillPos, function()
+                    StartDistanceCheck()
+                end)
+            end)
+        end
+
+        print("[AFK] ✅ Re-applied on new Character")
+    end
+end)
 
 -- ==================================================
 -- EXPORT
