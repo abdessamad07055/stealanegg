@@ -1,7 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | AFK System
 -- រក Plot + Treadmill → Fly TP → Jump Out
--- ✅ Fly ធម្មតា → Stop ភ្លាម → មិន Lock
+-- ✅ Fly ធម្មតា → Stop ភ្លាម → Reset CFrame
 -- ✅ JumpOut រហូតដល់ Dist > 5
 -- ✅ Restart ពេល Character Added
 -- ==================================================
@@ -14,7 +14,7 @@ local Player = Players.LocalPlayer
 -- ==================================================
 -- SETTINGS
 -- ==================================================
-local FLY_SPEED = 350
+local FLY_SPEED = 300
 local ARRIVE_TIMEOUT = 15
 local JUMP_DISTANCE_THRESHOLD = 5
 local JUMP_MAX_ATTEMPTS = 50
@@ -123,7 +123,7 @@ local function FindMyPlotAndTreadmill()
 end
 
 -- ==================================================
--- FLY TP (✅ Fly ធម្មតា → Stop ភ្លាម → មិន Lock)
+-- FLY TP (✅ Stop + Wait + Reset CFrame)
 -- ==================================================
 local function FlyTP(Destination, Callback)
     CleanupMovers()
@@ -179,9 +179,23 @@ local function FlyTP(Destination, Callback)
         local TotalDist = math.floor(Direction.Magnitude)
 
         if TotalDist <= 2 then
+            -- ✅ Stop BodyVelocity មុន
+            if BodyVelocity then
+                BodyVelocity.Velocity = Vector3.zero
+                BodyVelocity.MaxForce = Vector3.zero
+            end
+            if BodyGyro then
+                BodyGyro.MaxTorque = Vector3.zero
+            end
+
+            task.wait(0.1)
             CleanupMovers()
+
+            -- ✅ Reset CFrame
+            Root2.CFrame = CFrame.new(Destination)
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
+
             if Callback then Callback() end
             return
         end
@@ -238,8 +252,7 @@ end
 -- DISTANCE CHECK LOOP
 -- ==================================================
 local function StartDistanceCheck()
-    if DistCheckThread then
-        pcall(function() task.cancel(DistCheckThread) end)
+    if DistCheckThread then        pcall(function() task.cancel(DistCheckThread) end)
         DistCheckThread = nil
     end
 
@@ -312,21 +325,19 @@ local function DisableAFK()
 end
 
 -- ==================================================
--- AUTO RE-APPLY ON CHARACTER ADDED (✅ ថ្មី)
+-- AUTO RE-APPLY ON CHARACTER ADDED
 -- ==================================================
 Player.CharacterAdded:Connect(function(Char)
     if AFKEnabled then
         print("[AFK] Character Added → Restarting AFK...")
         task.wait(1)
 
-        -- Reset State
         CleanupMovers()
         if DistCheckThread then
             pcall(function() task.cancel(DistCheckThread) end)
             DistCheckThread = nil
         end
 
-        -- Restart AFK
         MyPlot, MyTreadmill = FindMyPlotAndTreadmill()
         if MyTreadmill then
             MyTreadmillPos = MyTreadmill.Position
@@ -360,4 +371,4 @@ _G.YOKUDO_AFKSystem = {
     SAFE_ZONE = SAFE_ZONE,
 }
 
-print("✅ AFKSystem Feature Loaded (Fly Normal + Stop + Reset)")
+print("✅ AFKSystem Feature Loaded (Fly Normal + Stop + Reset CFrame)")
