@@ -2,7 +2,7 @@
 -- YOKUDO HUB | STEAL AN EGG | Loader
 --==================================================
 
-local BASE_URL = "https://raw.githubusercontent.com/betdoyvaka/stealanegg/main/"
+local BASE_URL = "https://raw.githubusercontent.com/abdessamad07055/stealanegg/main/"
 
 _G.YOKUDO_EnablePrint = false
 
