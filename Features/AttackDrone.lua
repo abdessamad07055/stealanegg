@@ -1,9 +1,10 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Attack Drone
 -- Attack ONLY Top1 (AugmentedDrone) | Top2 (ReactorDrone) | Top3 (ScrapDrone)
--- FOLLOW_SPEED = 700
+-- FOLLOW_SPEED = 500
 -- ✅ Fly TP មិន Lock + Stop ភ្លាម + Reset
 -- ✅ Lock CFrame តែពេល Follow Mob
+-- ✅ Restart ពេល Character Added
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -287,7 +288,7 @@ local function GetBehindPosition(Target)
 end
 
 -- ==================================================
--- START LOCK (✅ តែពេល Follow Mob)
+-- START LOCK (តែពេល Follow Mob)
 -- ==================================================
 local function StartLock(Position, LookAt)
     LockCFrame = CFrame.new(Position, LookAt or (Position + Vector3.new(0, 0, -1)))
@@ -360,7 +361,6 @@ function StartFollow()
 
         if TotalDist <= SHORT_TP_DISTANCE then
             CleanupMovers()
-            -- ✅ ពេលជិត → Stop ភ្លាម → Lock CFrame តែម្តង
             Root2.CFrame = CFrame.new(BehindPos, TargetPos)
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
@@ -374,7 +374,7 @@ function StartFollow()
 end
 
 -- ==================================================
--- FLY TP TO POSITION (✅ Fly ធម្មតា → Stop → Reset មិន Lock)
+-- FLY TP TO POSITION (មិន Lock)
 -- ==================================================
 function FlyTPToPosition(Destination, Callback)
     CleanupMovers()
@@ -417,7 +417,6 @@ function FlyTPToPosition(Destination, Callback)
         if TotalDist <= 2 then
             CleanupMovers()
             IsFlying = false
-            -- ✅ Stop ភ្លាម + Reset មិន Lock
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
             if Callback then Callback() end
@@ -592,7 +591,6 @@ local function StartAttack()
 
     StartAttackLoop()
 
-    -- ✅ Fly ធម្មតា → Stop ភ្លាម → Spawn Loop
     FlyTPToPosition(SAFE_ZONE, function()
         task.wait(SAFE_WAIT_TIME)
         SpawnLoop()
@@ -620,7 +618,6 @@ local function StopAttackDrone()
         _G.YOKUDO_AutoAttack.DisableAutoEquip()
     end
 
-    -- ✅ Reset Velocity (មិន Lock)
     local Hum, Root = GetHumanoid()
     if Root then
         pcall(function()
@@ -633,13 +630,38 @@ local function StopAttackDrone()
 end
 
 -- ==================================================
--- AUTO RE-APPLY ON CHARACTER ADDED
+-- AUTO RE-APPLY ON CHARACTER ADDED (✅ Restart ដូច User ធីកដំបូង)
 -- ==================================================
-Player.CharacterAdded:Connect(function()
+Player.CharacterAdded:Connect(function(Char)
     if AttackDroneEnabled then
+        print("[AttackDrone] Character Added → Restarting...")
         task.wait(1)
-        SaveLiveStats()
+
+        -- ✅ Reset State ទាំងអស់
         CleanupMovers()
+        CurrentTarget = nil
+        CurrentTargetPriority = nil
+        CurrentSpawnIndex = 1
+        IsFlying = false
+        SpawnLoopRunning = false
+        LastFire = 0
+        TraceSequence = 0
+
+        -- ✅ Save Stats ពី Character ថ្មី
+        SaveLiveStats()
+
+        -- ✅ Restart Attack Loop
+        StartAttackLoop()
+
+        -- ✅ Restart Spawn Loop
+        task.spawn(function()
+            FlyTPToPosition(SAFE_ZONE, function()
+                task.wait(SAFE_WAIT_TIME)
+                SpawnLoop()
+            end)
+        end)
+
+        print("[AttackDrone] ✅ Re-applied on new Character")
     end
 end)
 
@@ -671,4 +693,4 @@ _G.YOKUDO_AttackDrone = {
     FOLLOW_SPEED = FOLLOW_SPEED
 }
 
-print("✅ AttackDrone Feature Loaded (Fly Normal + Stop + Reset)")
+print("✅ AttackDrone Feature Loaded (Restart on Character Added)")
