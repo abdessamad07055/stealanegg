@@ -2,9 +2,8 @@
 -- YOKUDO HUB | FEATURE | Attack Drone
 -- Attack ONLY Top1 (AugmentedDrone) | Top2 (ReactorDrone) | Top3 (ScrapDrone)
 -- FOLLOW_SPEED = 700
--- ✅ Auto Equip Bat តែពេលឃើញ Mob
--- ✅ Short TP តែពេល Follow Behind ជិត Mob (15)
--- ✅ Safe Zone: Fly TP ធម្មតា (មិន Short TP)
+-- ✅ Fly TP មិន Lock + Stop ភ្លាម + Reset
+-- ✅ Lock CFrame តែពេល Follow Mob
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -17,10 +16,10 @@ local Player = Players.LocalPlayer
 -- SETTINGS
 -- ==================================================
 local ATTACK_RANGE = 16
-local ATTACK_INTERVAL = 0.05
-local FOLLOW_SPEED = 350
+local ATTACK_INTERVAL = 0.02
+local FOLLOW_SPEED = 700
 local FOLLOW_BEHIND_DISTANCE = 3
-local SHORT_TP_DISTANCE = 15   -- ✅ ប្តូរពី 20 ទៅ 15
+local SHORT_TP_DISTANCE = 20
 local SPAWN_POSITION_1 = Vector3.new(2140, 77, -367)
 local SPAWN_POSITION_2 = Vector3.new(5723, 77, -376)
 local SAFE_ZONE = Vector3.new(533, 70, -366)
@@ -288,7 +287,7 @@ local function GetBehindPosition(Target)
 end
 
 -- ==================================================
--- START LOCK
+-- START LOCK (✅ តែពេល Follow Mob)
 -- ==================================================
 local function StartLock(Position, LookAt)
     LockCFrame = CFrame.new(Position, LookAt or (Position + Vector3.new(0, 0, -1)))
@@ -317,18 +316,13 @@ local function StartLock(Position, LookAt)
 end
 
 -- ==================================================
--- FOLLOW BEHIND (✅ Short TP តែពេលជិត Mob 15)
+-- FOLLOW BEHIND
 -- ==================================================
 function StartFollow()
     CleanupMovers()
     local Hum, Root = GetHumanoid()
     if not Hum or not Root then return end
     if Hum.Health <= 0 then return end
-
-    -- ✅ បើគ្មាន Target → មិន Follow
-    if not CurrentTarget or not CurrentTarget.Parent then
-        return
-    end
 
     Hum.PlatformStand = true
 
@@ -364,9 +358,9 @@ function StartFollow()
         local Direction = BehindPos - CurrentPos
         local TotalDist = math.floor(Direction.Magnitude)
 
-        -- ✅ Short TP តែពេលជិត Mob 15
         if TotalDist <= SHORT_TP_DISTANCE then
             CleanupMovers()
+            -- ✅ ពេលជិត → Stop ភ្លាម → Lock CFrame តែម្តង
             Root2.CFrame = CFrame.new(BehindPos, TargetPos)
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
@@ -380,7 +374,7 @@ function StartFollow()
 end
 
 -- ==================================================
--- FLY TP TO POSITION (✅ Safe Zone ប្រើធម្មតា មិន Short TP)
+-- FLY TP TO POSITION (✅ Fly ធម្មតា → Stop → Reset មិន Lock)
 -- ==================================================
 function FlyTPToPosition(Destination, Callback)
     CleanupMovers()
@@ -423,7 +417,7 @@ function FlyTPToPosition(Destination, Callback)
         if TotalDist <= 2 then
             CleanupMovers()
             IsFlying = false
-            Root2.CFrame = CFrame.new(Destination)
+            -- ✅ Stop ភ្លាម + Reset មិន Lock
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
             if Callback then Callback() end
@@ -539,61 +533,6 @@ local function FireAtDrone(Drone)
 end
 
 -- ==================================================
--- ✅ ATTACK MOBS (Auto Equip + Attack តែពេលឃើញ Mob)
--- ==================================================
-local function AttackMobs()
-    if not AttackDroneEnabled then return end
-    if IsFlying then return end
-
-    local Hum, Root = GetHumanoid()
-    if not Hum or not Root then return end
-    if Hum.Health <= 0 then return end
-
-    -- ✅ បើគ្មាន Mob → មិន Equip, មិន Attack
-    local HasMob = #FindAllDrones() > 0
-    if not HasMob then
-        if _G.YOKUDO_AutoAttack then
-            _G.YOKUDO_AutoAttack.DisableAutoEquip()
-        end
-        return
-    end
-
-    -- ✅ មាន Mob → Equip Bat
-    if _G.YOKUDO_AutoAttack then
-        _G.YOKUDO_AutoAttack.EnableAutoEquip()
-    end
-
-    EnsureStatsAlive()
-
-    if not CurrentTarget or not CurrentTarget.Parent then
-        local NewTarget, NewPriority = FindBestDrone()
-        if NewTarget then
-            CurrentTarget = NewTarget
-            CurrentTargetPriority = NewPriority
-            StartFollow()
-        end
-        return
-    end
-
-    local CurrentPriority = GetDronePriority(CurrentTarget)
-    local BestDrone, BestPriority = FindBestDrone()
-
-    if BestDrone and BestPriority and CurrentPriority and BestPriority < CurrentPriority then
-        print("[AttackDrone] Higher Priority Detected! Switching...")
-        CurrentTarget = BestDrone
-        CurrentTargetPriority = BestPriority
-        StartFollow()
-        return
-    end
-
-    local now = tick()
-    if now - LastFire >= ATTACK_INTERVAL then
-        LastFire = now
-        FireAtDrone(CurrentTarget)
-    end
-end
-
--- ==================================================
 -- MAIN ATTACK LOOP
 -- ==================================================
 function StartAttackLoop()
@@ -601,7 +540,40 @@ function StartAttackLoop()
 
     AttackConnection = RunService.Heartbeat:Connect(function()
         if not AttackDroneEnabled then return end
-        AttackMobs()
+        if IsFlying then return end
+
+        local Hum, Root = GetHumanoid()
+        if not Hum or not Root then return end
+        if Hum.Health <= 0 then return end
+
+        EnsureStatsAlive()
+
+        if not CurrentTarget or not CurrentTarget.Parent then
+            local NewTarget, NewPriority = FindBestDrone()
+            if NewTarget then
+                CurrentTarget = NewTarget
+                CurrentTargetPriority = NewPriority
+                StartFollow()
+            end
+            return
+        end
+
+        local CurrentPriority = GetDronePriority(CurrentTarget)
+        local BestDrone, BestPriority = FindBestDrone()
+
+        if BestDrone and BestPriority and CurrentPriority and BestPriority < CurrentPriority then
+            print("[AttackDrone] Higher Priority Detected! Switching...")
+            CurrentTarget = BestDrone
+            CurrentTargetPriority = BestPriority
+            StartFollow()
+            return
+        end
+
+        local now = tick()
+        if now - LastFire >= ATTACK_INTERVAL then
+            LastFire = now
+            FireAtDrone(CurrentTarget)
+        end
     end)
 end
 
@@ -614,14 +586,13 @@ local function StartAttack()
 
     SaveLiveStats()
 
-    -- ✅ បិទ Auto Equip ជាមុន (រង់ចាំឃើញ Mob)
     if _G.YOKUDO_AutoAttack then
-        _G.YOKUDO_AutoAttack.DisableAutoEquip()
+        _G.YOKUDO_AutoAttack.EnableAutoEquip()
     end
 
     StartAttackLoop()
 
-    -- Fly ទៅ Safe Zone មុន → បន្ទាប់មក Spawn Loop
+    -- ✅ Fly ធម្មតា → Stop ភ្លាម → Spawn Loop
     FlyTPToPosition(SAFE_ZONE, function()
         task.wait(SAFE_WAIT_TIME)
         SpawnLoop()
@@ -649,6 +620,15 @@ local function StopAttackDrone()
         _G.YOKUDO_AutoAttack.DisableAutoEquip()
     end
 
+    -- ✅ Reset Velocity (មិន Lock)
+    local Hum, Root = GetHumanoid()
+    if Root then
+        pcall(function()
+            Root.AssemblyLinearVelocity = Vector3.zero
+            Root.AssemblyAngularVelocity = Vector3.zero
+        end)
+    end
+
     print("[AttackDrone] Attack Drone: OFF")
 end
 
@@ -659,6 +639,7 @@ Player.CharacterAdded:Connect(function()
     if AttackDroneEnabled then
         task.wait(1)
         SaveLiveStats()
+        CleanupMovers()
     end
 end)
 
@@ -690,4 +671,4 @@ _G.YOKUDO_AttackDrone = {
     FOLLOW_SPEED = FOLLOW_SPEED
 }
 
-print("✅ AttackDrone Feature Loaded (Mob Only Equip + Short TP 15)")
+print("✅ AttackDrone Feature Loaded (Fly Normal + Stop + Reset)")
