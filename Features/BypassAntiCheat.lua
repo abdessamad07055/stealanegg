@@ -51,7 +51,7 @@ local function RunBypassAntiCheat()
         end
     end)
 
-    -- Lock Health & Anti-Death
+    -- Lock Health & Anti-Death (GodMode)
     local function ApplyGodMode()
         if NewHumanoid and NewHumanoid.Parent then
             pcall(function()
