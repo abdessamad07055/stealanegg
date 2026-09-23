@@ -1,8 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Attack Drone
 -- Attack ONLY Top1 | Top2 | Top3
--- FOLLOW_SPEED = 500
--- ✅ Fly TP មិន Lock + Stop ភ្លាម + Reset
+-- ✅ Fly TP មិន Lock + Stop ភ្លាម + Reset CFrame
 -- ✅ Lock CFrame តែពេល Follow Mob
 -- ✅ Restart ពេល Character Added
 -- ✅ StartAttack រង់ចាំ Fly TP ដល់ Safe Zone ពិតប្រាកដ
@@ -19,7 +18,7 @@ local Player = Players.LocalPlayer
 -- ==================================================
 local ATTACK_RANGE = 16
 local ATTACK_INTERVAL = 0.05
-local FOLLOW_SPEED = 500
+local FOLLOW_SPEED = 300
 local FOLLOW_BEHIND_DISTANCE = 3
 local SHORT_TP_DISTANCE = 20
 local SPAWN_POSITION_1 = Vector3.new(2140, 77, -367)
@@ -135,7 +134,7 @@ local function EnsureStatsAlive()
 end
 
 -- ==================================================
--- CLEANUP
+-- CLEANUP (✅ Disconnect + Reset CFrame)
 -- ==================================================
 local function CleanupMovers()
     if FollowConnection then FollowConnection:Disconnect() FollowConnection = nil end
@@ -318,7 +317,7 @@ local function StartLock(Position, LookAt)
 end
 
 -- ==================================================
--- FOLLOW BEHIND
+-- FOLLOW BEHIND (✅ Stop + Wait + Reset CFrame)
 -- ==================================================
 function StartFollow()
     CleanupMovers()
@@ -361,7 +360,19 @@ function StartFollow()
         local TotalDist = math.floor(Direction.Magnitude)
 
         if TotalDist <= SHORT_TP_DISTANCE then
+            -- ✅ Stop BodyVelocity មុន
+            if BodyVelocity then
+                BodyVelocity.Velocity = Vector3.zero
+                BodyVelocity.MaxForce = Vector3.zero
+            end
+            if BodyGyro then
+                BodyGyro.MaxTorque = Vector3.zero
+            end
+
+            task.wait(0.1)
             CleanupMovers()
+
+            -- ✅ Reset CFrame
             Root2.CFrame = CFrame.new(BehindPos, TargetPos)
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
@@ -375,7 +386,7 @@ function StartFollow()
 end
 
 -- ==================================================
--- FLY TP TO POSITION (✅ រង់ចាំដល់ Destination ពិតប្រាកដ)
+-- FLY TP TO POSITION (✅ Stop + Wait + Reset CFrame)
 -- ==================================================
 function FlyTPToPosition(Destination, Callback)
     CleanupMovers()
@@ -416,10 +427,24 @@ function FlyTPToPosition(Destination, Callback)
         local TotalDist = math.floor(Direction.Magnitude)
 
         if TotalDist <= 2 then
+            -- ✅ Stop BodyVelocity មុន
+            if BodyVelocity then
+                BodyVelocity.Velocity = Vector3.zero
+                BodyVelocity.MaxForce = Vector3.zero
+            end
+            if BodyGyro then
+                BodyGyro.MaxTorque = Vector3.zero
+            end
+
+            task.wait(0.1)
             CleanupMovers()
             IsFlying = false
+
+            -- ✅ Reset CFrame ទៅ Destination
+            Root2.CFrame = CFrame.new(Destination)
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
+
             if Callback then Callback() end
             return
         end
