@@ -1,10 +1,10 @@
 --==================================================
--- YOKUDO HUB | STEAL AN EGG | Loader
+-- YOKUDO HUB | STEAL AN EGG | Loader (Full Code)
 --==================================================
 
-local BASE_URL = "https://raw.githubusercontent.com/abdessamad07055/stealanegg/main/"
+local BASE_URL = "https://raw.githubusercontent.com/betdoyvaka/stealanegg/main/"
 
-_G.YOKUDO_EnablePrint = false
+_G.YOKUDO_EnablePrint = true
 
 local oldPrint = print
 print = function(...)
@@ -150,7 +150,7 @@ local function CreateLoadingScreen()
 end
 
 --==================================================
--- CREATE LOADING SCREEN
+-- START LOADING PROCESS
 --==================================================
 local Loading = CreateLoadingScreen()
 Loading.Update(5)
@@ -248,13 +248,13 @@ end
 Loading.Update(95)
 
 --==================================================
--- LOAD ANTI CHEAT
+-- LOAD ANTI CHEAT & BYPASS
 --==================================================
 Loading.Update(98)
 loadstring(GetScript("Features/BypassAntiCheat.lua"))()
 
 --==================================================
--- ✅ WAIT 2 SECONDS THEN APPLY CONFIG
+-- ✅ APPLY CONFIG
 --==================================================
 print("⏳ Waiting 2s before applying config...")
 task.wait(2)
