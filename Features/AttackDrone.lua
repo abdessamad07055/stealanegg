@@ -17,7 +17,7 @@ local Player = Players.LocalPlayer
 -- SETTINGS
 -- ==================================================
 local ATTACK_RANGE = 16
-local ATTACK_INTERVAL = 0.02
+local ATTACK_INTERVAL = 0.05
 local FOLLOW_SPEED = 350
 local FOLLOW_BEHIND_DISTANCE = 3
 local SHORT_TP_DISTANCE = 15   -- ✅ ប្តូរពី 20 ទៅ 15
