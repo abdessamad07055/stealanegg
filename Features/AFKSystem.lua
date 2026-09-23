@@ -1,9 +1,8 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | AFK System
 -- រក Plot + Treadmill → Fly TP → Jump Out
--- ✅ Enable: Fly to Safe Zone → Wait → Fly to Treadmill
--- ✅ JumpOut: Jump រហូតដល់ Dist > 5 ចេញពី Treadmill
--- ✅ Auto Fly Back បើ Dist > 5
+-- ✅ Fly ធម្មតា → Stop ភ្លាម → មិន Lock
+-- ✅ JumpOut រហូតដល់ Dist > 5
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -14,7 +13,7 @@ local Player = Players.LocalPlayer
 -- ==================================================
 -- SETTINGS
 -- ==================================================
-local FLY_SPEED = 400
+local FLY_SPEED = 350
 local ARRIVE_TIMEOUT = 15
 local JUMP_DISTANCE_THRESHOLD = 5
 local JUMP_MAX_ATTEMPTS = 50
@@ -123,7 +122,7 @@ local function FindMyPlotAndTreadmill()
 end
 
 -- ==================================================
--- FLY TP
+-- FLY TP (✅ Fly ធម្មតា → Stop ភ្លាម → មិន Lock)
 -- ==================================================
 local function FlyTP(Destination, Callback)
     CleanupMovers()
@@ -180,7 +179,7 @@ local function FlyTP(Destination, Callback)
 
         if TotalDist <= 2 then
             CleanupMovers()
-            Root2.CFrame = CFrame.new(Destination)
+            -- ✅ Stop ភ្លាម + Reset មិន Lock
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
             if Callback then Callback() end
@@ -199,7 +198,7 @@ local function FlyTP(Destination, Callback)
 end
 
 -- ==================================================
--- JUMP OUT TREADMILL (✅ រហូតដល់ចេញពី Dist > 5)
+-- JUMP OUT TREADMILL
 -- ==================================================
 local function JumpOutTreadmill(TreadmillPos, Callback)
     local Hum, Root = GetHumanoid()
@@ -212,20 +211,15 @@ local function JumpOutTreadmill(TreadmillPos, Callback)
 
     task.spawn(function()
         local Attempts = 0
-        local JumpedOut = false
-
-        while Attempts < JUMP_MAX_ATTEMPTS do
+        while AFKEnabled and Attempts < JUMP_MAX_ATTEMPTS do
             local Hum2, Root2 = GetHumanoid()
             if not Hum2 or not Root2 then break end
             if Hum2.Health <= 0 then break end
 
             local DistToTreadmill = math.floor((Root2.Position - TreadmillPos).Magnitude)
 
-            print("[AFK] Jump Attempt " .. Attempts .. " | Dist: " .. DistToTreadmill)
-
             if DistToTreadmill > JUMP_DISTANCE_THRESHOLD then
                 print("[AFK] ✅ Jumped out! Distance:", DistToTreadmill)
-                JumpedOut = true
                 if Callback then Callback() end
                 return
             end
@@ -235,9 +229,7 @@ local function JumpOutTreadmill(TreadmillPos, Callback)
             task.wait(JUMP_ATTEMPT_WAIT)
         end
 
-        if not JumpedOut then
-            print("[AFK] ⚠️ JumpOut timeout after " .. Attempts .. " attempts")
-        end
+        print("[AFK] JumpOut timeout")
         if Callback then Callback() end
     end)
 end
@@ -260,7 +252,6 @@ local function StartDistanceCheck()
             if not Root or not MyTreadmillPos then continue end
 
             local DistToTreadmill = math.floor((Root.Position - MyTreadmillPos).Magnitude)
-            print("[AFK] Distance Check | Dist:", DistToTreadmill)
 
             if DistToTreadmill > DIST_TREADMILL_THRESHOLD then
                 print("[AFK] Player jumped out! Fly back to Treadmill")
@@ -271,7 +262,7 @@ local function StartDistanceCheck()
 end
 
 -- ==================================================
--- ENABLE (✅ Fly to Safe Zone → Wait → Fly to Treadmill)
+-- ENABLE
 -- ==================================================
 local function EnableAFK()
     if AFKEnabled then return end
@@ -287,7 +278,7 @@ local function EnableAFK()
         return
     end
 
-    -- ✅ Fly TP ទៅ Safe Zone មុន → រង់ចាំ → Fly TP ទៅ Treadmill
+    -- ✅ Fly to Safe Zone → Wait → Fly to Treadmill
     print("[AFK] Fly to Safe Zone first")
     FlyTP(SAFE_ZONE, function()
         task.wait(SAFE_WAIT_TIME)
@@ -322,22 +313,6 @@ local function DisableAFK()
 end
 
 -- ==================================================
--- JUMP OUT AND GO SAFE
--- ==================================================
-local function JumpOutAndGoSafe()
-    if not MyTreadmillPos then
-        MyPlot, MyTreadmill = FindMyPlotAndTreadmill()
-        if MyTreadmill then
-            MyTreadmillPos = MyTreadmill.Position
-        end
-    end
-
-    JumpOutTreadmill(MyTreadmillPos, function()
-        print("[AFK] Jumped out, ready for attack")
-    end)
-end
-
--- ==================================================
 -- EXPORT
 -- ==================================================
 _G.YOKUDO_AFKSystem = {
@@ -347,7 +322,6 @@ _G.YOKUDO_AFKSystem = {
     FindMyPlotAndTreadmill = FindMyPlotAndTreadmill,
     FlyTP = FlyTP,
     JumpOutTreadmill = JumpOutTreadmill,
-    JumpOutAndGoSafe = JumpOutAndGoSafe,
     GetMyTreadmillPos = function() return MyTreadmillPos end,
     GetMyTreadmill = function() return MyTreadmill end,
     GetMyPlot = function() return MyPlot end,
@@ -355,4 +329,4 @@ _G.YOKUDO_AFKSystem = {
     SAFE_ZONE = SAFE_ZONE,
 }
 
-print("✅ AFKSystem Feature Loaded (Safe Zone First + Jump Out)")
+print("✅ AFKSystem Feature Loaded (Fly Normal + Stop + Reset)")
