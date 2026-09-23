@@ -1,10 +1,9 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Attack Drone
 -- Attack ONLY Top1 | Top2 | Top3
--- ✅ Fly TP មិន Lock + Stop ភ្លាម + Reset CFrame
--- ✅ Lock CFrame តែពេល Follow Mob
+-- ✅ Walk TP (Humanoid:MoveTo + WalkSpeed ខ្ពស់)
+-- ✅ មិនកន្រ្កាត់ + មិន CFrame
 -- ✅ Restart ពេល Character Added
--- ✅ StartAttack រង់ចាំ Fly TP ដល់ Safe Zone ពិតប្រាកដ
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -18,9 +17,10 @@ local Player = Players.LocalPlayer
 -- ==================================================
 local ATTACK_RANGE = 16
 local ATTACK_INTERVAL = 0.05
-local FOLLOW_SPEED = 500
+local WALK_SPEED = 500                -- ✅ WalkSpeed ខ្ពស់
 local FOLLOW_BEHIND_DISTANCE = 3
-local SHORT_TP_DISTANCE = 15
+local SHORT_TP_DISTANCE = 20
+local ARRIVE_DISTANCE = 5             -- ✅ ចម្ងាយដែលឈប់ (5 studs)
 local SPAWN_POSITION_1 = Vector3.new(2140, 77, -367)
 local SPAWN_POSITION_2 = Vector3.new(5723, 77, -376)
 local SAFE_ZONE = Vector3.new(533, 70, -366)
@@ -46,8 +46,6 @@ local AttackDroneEnabled = false
 local AttackConnection = nil
 local FollowConnection = nil
 local LockConnection = nil
-local BodyVelocity = nil
-local BodyGyro = nil
 local CurrentTarget = nil
 local CurrentTargetPriority = nil
 local LastFire = 0
@@ -56,8 +54,9 @@ local IsLocked = false
 local LockCFrame = nil
 local Phase = "idle"
 local CurrentSpawnIndex = 1
-local IsFlying = false
+local IsWalking = false
 local SpawnLoopRunning = false
+local OriginalWalkSpeed = 16
 
 -- Live Saved Stats
 local SavedStats = {
@@ -72,10 +71,11 @@ local SavedStats = {
 -- FORWARD DECLARATIONS
 -- ==================================================
 local StartFollow
-local FlyTPToPosition
+local WalkTPToPosition
 local StartAttackLoop
 local SpawnLoop
 local StopAttack
+local InitialFlyAndStartLoop
 
 -- ==================================================
 -- GET HUMANOID
@@ -110,6 +110,7 @@ local function SaveLiveStats()
     SavedStats.JumpPower = Hum.JumpPower
     SavedStats.JumpHeight = Hum.JumpHeight
     SavedStats.UseJumpPower = Hum.UseJumpPower
+    OriginalWalkSpeed = Hum.WalkSpeed
 end
 
 local function RestoreLiveStats()
@@ -130,52 +131,30 @@ local function EnsureStatsAlive()
         SavedStats.JumpPower = Hum.JumpPower
         SavedStats.JumpHeight = Hum.JumpHeight
         SavedStats.UseJumpPower = Hum.UseJumpPower
+        OriginalWalkSpeed = Hum.WalkSpeed
     end
 end
 
 -- ==================================================
--- CLEANUP (✅ Disconnect + Reset CFrame)
+-- CLEANUP
 -- ==================================================
 local function CleanupMovers()
     if FollowConnection then FollowConnection:Disconnect() FollowConnection = nil end
     if LockConnection then LockConnection:Disconnect() LockConnection = nil end
-    if BodyVelocity then
-        pcall(function()
-            BodyVelocity.Velocity = Vector3.zero
-            BodyVelocity.MaxForce = Vector3.zero
-        end)
-        BodyVelocity:Destroy()
-        BodyVelocity = nil
-    end
-    if BodyGyro then
-        pcall(function() BodyGyro.MaxTorque = Vector3.zero end)
-        BodyGyro:Destroy()
-        BodyGyro = nil
-    end
 
     local Hum, Root = GetHumanoid()
-    if Root then
-        for _, Child in ipairs(Root:GetChildren()) do
-            if Child.Name == "YokudoBV" or Child.Name == "YokudoBG" then
-                pcall(function() Child:Destroy() end)
-            end
-        end
-    end
     if Hum then
         pcall(function()
+            Hum:MoveTo(Root and Root.Position or Vector3.zero)
+            Hum.WalkSpeed = OriginalWalkSpeed
             Hum.PlatformStand = false
             Hum.Sit = false
-        end)
-    end
-    if Root then
-        pcall(function()
-            Root.AssemblyLinearVelocity = Vector3.zero
-            Root.AssemblyAngularVelocity = Vector3.zero
         end)
     end
 
     IsLocked = false
     LockCFrame = nil
+    IsWalking = false
 end
 
 -- ==================================================
@@ -317,7 +296,7 @@ local function StartLock(Position, LookAt)
 end
 
 -- ==================================================
--- FOLLOW BEHIND (✅ Stop + Wait + Reset CFrame)
+-- FOLLOW BEHIND (✅ Walk TP)
 -- ==================================================
 function StartFollow()
     CleanupMovers()
@@ -325,29 +304,14 @@ function StartFollow()
     if not Hum or not Root then return end
     if Hum.Health <= 0 then return end
 
-    Hum.PlatformStand = true
-
-    BodyVelocity = Instance.new("BodyVelocity")
-    BodyVelocity.Name = "YokudoBV"
-    BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    BodyVelocity.P = 1250
-    BodyVelocity.Velocity = Vector3.zero
-    BodyVelocity.Parent = Root
-
-    BodyGyro = Instance.new("BodyGyro")
-    BodyGyro.Name = "YokudoBG"
-    BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    BodyGyro.P = 3000
-    BodyGyro.D = 500
-    BodyGyro.CFrame = Root.CFrame
-    BodyGyro.Parent = Root
+    -- ✅ កំណត់ WalkSpeed ខ្ពស់
+    Hum.WalkSpeed = WALK_SPEED
 
     FollowConnection = RunService.Heartbeat:Connect(function()
         if not AttackDroneEnabled then CleanupMovers() return end
         local Hum2, Root2 = GetHumanoid()
         if not Hum2 or not Root2 then CleanupMovers() return end
         if Hum2.Health <= 0 then return end
-        if not BodyVelocity or not BodyGyro then CleanupMovers() return end
         if not CurrentTarget or not CurrentTarget.Parent then CleanupMovers() return end
 
         local TargetPos = GetPosition(CurrentTarget)
@@ -359,20 +323,14 @@ function StartFollow()
         local Direction = BehindPos - CurrentPos
         local TotalDist = math.floor(Direction.Magnitude)
 
+        -- ✅ ពេលជិត → Stop Walk → Lock
         if TotalDist <= SHORT_TP_DISTANCE then
-            -- ✅ Stop BodyVelocity មុន
-            if BodyVelocity then
-                BodyVelocity.Velocity = Vector3.zero
-                BodyVelocity.MaxForce = Vector3.zero
-            end
-            if BodyGyro then
-                BodyGyro.MaxTorque = Vector3.zero
-            end
+            Hum2:MoveTo(Root2.Position)  -- Stop MoveTo
+            Hum2.WalkSpeed = OriginalWalkSpeed
 
             task.wait(0.1)
             CleanupMovers()
 
-            -- ✅ Reset CFrame
             Root2.CFrame = CFrame.new(BehindPos, TargetPos)
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
@@ -380,84 +338,60 @@ function StartFollow()
             return
         end
 
-        BodyVelocity.Velocity = Direction.Unit * FOLLOW_SPEED
-        BodyGyro.CFrame = CFrame.new(CurrentPos, TargetPos)
+        -- ✅ Walk ទៅ BehindPos
+        Hum2:MoveTo(BehindPos)
     end)
 end
 
 -- ==================================================
--- FLY TP TO POSITION (✅ Stop + Wait + Reset CFrame)
+-- WALK TP TO POSITION (✅ Walk TP ជំនួស Fly TP)
 -- ==================================================
-function FlyTPToPosition(Destination, Callback)
+function WalkTPToPosition(Destination, Callback)
     CleanupMovers()
-    IsFlying = true
+    IsWalking = true
 
     local Hum, Root = GetHumanoid()
-    if not Hum or not Root then IsFlying = false if Callback then Callback() end return end
-    if Hum.Health <= 0 then IsFlying = false if Callback then Callback() end return end
+    if not Hum or not Root then IsWalking = false if Callback then Callback() end return end
+    if Hum.Health <= 0 then IsWalking = false if Callback then Callback() end return end
 
-    Hum.PlatformStand = true
-
-    BodyVelocity = Instance.new("BodyVelocity")
-    BodyVelocity.Name = "YokudoBV"
-    BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    BodyVelocity.P = 1250
-    BodyVelocity.Velocity = Vector3.zero
-    BodyVelocity.Parent = Root
-
-    BodyGyro = Instance.new("BodyGyro")
-    BodyGyro.Name = "YokudoBG"
-    BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    BodyGyro.P = 3000
-    BodyGyro.D = 500
-    BodyGyro.CFrame = Root.CFrame
-    BodyGyro.Parent = Root
+    -- ✅ កំណត់ WalkSpeed ខ្ពស់
+    Hum.WalkSpeed = WALK_SPEED
 
     local StartTime = tick()
 
     FollowConnection = RunService.Heartbeat:Connect(function()
-        if not AttackDroneEnabled then CleanupMovers() IsFlying = false return end
+        if not AttackDroneEnabled then CleanupMovers() IsWalking = false return end
         local Hum2, Root2 = GetHumanoid()
-        if not Hum2 or not Root2 then CleanupMovers() IsFlying = false return end
+        if not Hum2 or not Root2 then CleanupMovers() IsWalking = false return end
         if Hum2.Health <= 0 then return end
-        if not BodyVelocity or not BodyGyro then CleanupMovers() IsFlying = false return end
 
         local CurrentPos = Root2.Position
-        local Direction = Destination - CurrentPos
-        local TotalDist = math.floor(Direction.Magnitude)
+        local TotalDist = math.floor((Destination - CurrentPos).Magnitude)
 
-        if TotalDist <= 2 then
-            -- ✅ Stop BodyVelocity មុន
-            if BodyVelocity then
-                BodyVelocity.Velocity = Vector3.zero
-                BodyVelocity.MaxForce = Vector3.zero
-            end
-            if BodyGyro then
-                BodyGyro.MaxTorque = Vector3.zero
-            end
+        -- ✅ ពេលជិត → Stop Walk
+        if TotalDist <= ARRIVE_DISTANCE then
+            Hum2:MoveTo(Root2.Position)  -- Stop MoveTo
+            Hum2.WalkSpeed = OriginalWalkSpeed
 
             task.wait(0.1)
             CleanupMovers()
-            IsFlying = false
-
-            -- ✅ Reset CFrame ទៅ Destination
-            Root2.CFrame = CFrame.new(Destination)
-            Root2.AssemblyLinearVelocity = Vector3.zero
-            Root2.AssemblyAngularVelocity = Vector3.zero
+            IsWalking = false
 
             if Callback then Callback() end
             return
         end
 
         if tick() - StartTime > ARRIVE_TIMEOUT then
+            Hum2:MoveTo(Root2.Position)
+            Hum2.WalkSpeed = OriginalWalkSpeed
             CleanupMovers()
-            IsFlying = false
+            IsWalking = false
             if Callback then Callback() end
             return
         end
 
-        BodyVelocity.Velocity = Direction.Unit * FOLLOW_SPEED
-        BodyGyro.CFrame = CFrame.new(CurrentPos, Destination)
+        -- ✅ Walk ទៅ Destination
+        Hum2:MoveTo(Destination)
     end)
 end
 
@@ -488,10 +422,10 @@ function SpawnLoop()
                 continue
             end
 
-            print("[AttackDrone] Flying to Spawn " .. CurrentSpawnIndex)
+            print("[AttackDrone] Walking to Spawn " .. CurrentSpawnIndex)
 
             local Arrived = false
-            FlyTPToPosition(CurrentSpawn, function() Arrived = true end)
+            WalkTPToPosition(CurrentSpawn, function() Arrived = true end)
 
             local WaitTime = 0
             while AttackDroneEnabled and not Arrived and WaitTime < ARRIVE_TIMEOUT do
@@ -565,7 +499,7 @@ function StartAttackLoop()
 
     AttackConnection = RunService.Heartbeat:Connect(function()
         if not AttackDroneEnabled then return end
-        if IsFlying then return end
+        if IsWalking then return end
 
         local Hum, Root = GetHumanoid()
         if not Hum or not Root then return end
@@ -603,6 +537,48 @@ function StartAttackLoop()
 end
 
 -- ==================================================
+-- INITIAL FLY (Signed X Distance)
+-- ==================================================
+function InitialFlyAndStartLoop()
+    local Hum, Root = GetHumanoid()
+    if not Root then return end
+
+    local PlayerPos = Root.Position
+    local PlayerToPoint1Signed = math.floor(PlayerPos.X - POINT_1.X)
+
+    print("========================================")
+    print("[AttackDrone] Initial Walk Decision (Signed X)")
+    print("  Player Pos:                       ", PlayerPos)
+    print("  Signed (Player.X - Point1.X):     ", PlayerToPoint1Signed)
+    print("========================================")
+
+    if PlayerToPoint1Signed > 0 then
+        print("[AttackDrone] → Signed > 0 (Player in FRONT) → Walk to Spawn 1")
+        CurrentSpawnIndex = 1
+        SpawnLoop()
+    else
+        print("[AttackDrone] → Signed <= 0 (Player at/behind) → Walk to Safe first")
+        local SafeArrived = false
+        WalkTPToPosition(SAFE_ZONE, function()
+            SafeArrived = true
+            print("[AttackDrone] ✅ Arrived at Safe Zone")
+        end)
+
+        local WaitTime = 0
+        while AttackDroneEnabled and not SafeArrived and WaitTime < ARRIVE_TIMEOUT do
+            task.wait(0.1)
+            WaitTime = WaitTime + 0.1
+        end
+
+        if not AttackDroneEnabled then return end
+        task.wait(SAFE_WAIT_TIME)
+        print("[AttackDrone] Safe Zone Reached → Start Spawn Loop")
+        CurrentSpawnIndex = 1
+        SpawnLoop()
+    end
+end
+
+-- ==================================================
 -- START / STOP
 -- ==================================================
 local function StartAttack()
@@ -617,33 +593,32 @@ local function StartAttack()
 
     StartAttackLoop()
 
-    -- ✅ Fly TP ទៅ Safe Zone → រង់ចាំដល់ → បន្ទាប់មក Spawn Loop
-    print("[AttackDrone] Fly to Safe Zone → Wait Arrive → Spawn Loop")
-
-    local SafeArrived = false
-
-    FlyTPToPosition(SAFE_ZONE, function()
-        SafeArrived = true
-        print("[AttackDrone] ✅ Arrived at Safe Zone")
-    end)
-
-    -- រង់ចាំ Fly TP ដល់ Safe Zone ពិតប្រាកដ (Timeout 15s)
-    local WaitTime = 0
-    while AttackDroneEnabled and not SafeArrived and WaitTime < ARRIVE_TIMEOUT do
-        task.wait(0.1)
-        WaitTime = WaitTime + 0.1
-    end
-
-    if not AttackDroneEnabled then return end
-
-    print("[AttackDrone] Safe Zone Reached → Wait " .. SAFE_WAIT_TIME .. "s → Spawn Loop")
-    task.wait(SAFE_WAIT_TIME)
+    -- ✅ Walk TP ទៅ Safe Zone មុន → រង់ចាំដល់ → InitialFlyAndStartLoop
+    print("[AttackDrone] Start → Walk to Safe Zone first")
 
     task.spawn(function()
-        SpawnLoop()
+        local SafeArrived = false
+
+        WalkTPToPosition(SAFE_ZONE, function()
+            SafeArrived = true
+            print("[AttackDrone] ✅ Arrived at Safe Zone")
+        end)
+
+        local WaitTime = 0
+        while AttackDroneEnabled and not SafeArrived and WaitTime < ARRIVE_TIMEOUT do
+            task.wait(0.1)
+            WaitTime = WaitTime + 0.1
+        end
+
+        if not AttackDroneEnabled then return end
+
+        print("[AttackDrone] Safe Zone Reached → Wait " .. SAFE_WAIT_TIME .. "s → Initial Walk Logic")
+        task.wait(SAFE_WAIT_TIME)
+
+        InitialFlyAndStartLoop()
     end)
 
-    print("[AttackDrone] Attack Drone: ON")
+    print("[AttackDrone] Attack Drone: ON (Walk TP)")
 end
 
 local function StopAttackDrone()
@@ -656,7 +631,7 @@ local function StopAttackDrone()
     CurrentTarget = nil
     CurrentTargetPriority = nil
     CurrentSpawnIndex = 1
-    IsFlying = false
+    IsWalking = false
     SpawnLoopRunning = false
 
     RestoreLiveStats()
@@ -665,19 +640,11 @@ local function StopAttackDrone()
         _G.YOKUDO_AutoAttack.DisableAutoEquip()
     end
 
-    local Hum, Root = GetHumanoid()
-    if Root then
-        pcall(function()
-            Root.AssemblyLinearVelocity = Vector3.zero
-            Root.AssemblyAngularVelocity = Vector3.zero
-        end)
-    end
-
     print("[AttackDrone] Attack Drone: OFF")
 end
 
 -- ==================================================
--- AUTO RE-APPLY ON CHARACTER ADDED (✅ Restart)
+-- AUTO RE-APPLY ON CHARACTER ADDED
 -- ==================================================
 Player.CharacterAdded:Connect(function(Char)
     if AttackDroneEnabled then
@@ -688,7 +655,7 @@ Player.CharacterAdded:Connect(function(Char)
         CurrentTarget = nil
         CurrentTargetPriority = nil
         CurrentSpawnIndex = 1
-        IsFlying = false
+        IsWalking = false
         SpawnLoopRunning = false
         LastFire = 0
         TraceSequence = 0
@@ -699,7 +666,7 @@ Player.CharacterAdded:Connect(function(Char)
 
         task.spawn(function()
             local SafeArrived = false
-            FlyTPToPosition(SAFE_ZONE, function()
+            WalkTPToPosition(SAFE_ZONE, function()
                 SafeArrived = true
             end)
 
@@ -711,7 +678,7 @@ Player.CharacterAdded:Connect(function(Char)
 
             if not AttackDroneEnabled then return end
             task.wait(SAFE_WAIT_TIME)
-            SpawnLoop()
+            InitialFlyAndStartLoop()
         end)
 
         print("[AttackDrone] ✅ Re-applied on new Character")
@@ -732,6 +699,7 @@ _G.YOKUDO_AttackDrone = {
     IsEnabled = function() return AttackDroneEnabled end,
     StopAttack = StopAttack,
     SpawnLoop = SpawnLoop,
+    InitialFlyAndStartLoop = InitialFlyAndStartLoop,
     FindAllDrones = FindAllDrones,
     FindBestDrone = FindBestDrone,
     GetDronePriority = GetDronePriority,
@@ -743,7 +711,7 @@ _G.YOKUDO_AttackDrone = {
     POINT_1 = POINT_1,
     TIER_PRIORITY = TIER_PRIORITY,
     MAX_ALLOWED_PRIORITY = MAX_ALLOWED_PRIORITY,
-    FOLLOW_SPEED = FOLLOW_SPEED
+    WALK_SPEED = WALK_SPEED
 }
 
-print("✅ AttackDrone Feature Loaded (Wait Arrive Safe Zone)")
+print("✅ AttackDrone Feature Loaded (Walk TP)")
