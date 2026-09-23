@@ -122,7 +122,6 @@ local function ToggleGetEgg()
         GetEggCheckButton.BackgroundTransparency = 0
         GetEggCheckStroke.Color = Color3.fromRGB(135, 120, 225)
 
-        -- ✅ Call StartTeleport (reads Method from Setting)
         if _G.YOKUDO_AutoFarm then
             _G.YOKUDO_AutoFarm.StartTeleport()
         end
@@ -131,7 +130,6 @@ local function ToggleGetEgg()
         GetEggCheckButton.BackgroundTransparency = 0.85
         GetEggCheckStroke.Color = Color3.fromRGB(255, 255, 255)
 
-        -- ✅ Call StopTeleport
         if _G.YOKUDO_AutoFarm then
             _G.YOKUDO_AutoFarm.StopTeleport()
         end
@@ -143,13 +141,117 @@ GetEggCheckButton.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
+-- NEW FEATURE: Auto Treadmill Upgrade
+--==================================================
+local TreadmillBox = Instance.new("Frame")
+TreadmillBox.Size = UDim2.new(1, 0, 0, 44)
+TreadmillBox.BackgroundColor3 = Color3.fromRGB(28, 29, 42)
+TreadmillBox.BorderSizePixel = 0
+TreadmillBox.LayoutOrder = 3
+TreadmillBox.Parent = AutoFarmingPage
+
+local TreadmillCorner = Instance.new("UICorner")
+TreadmillCorner.CornerRadius = UDim.new(0, 8)
+TreadmillCorner.Parent = TreadmillBox
+
+local TreadmillStroke = Instance.new("UIStroke")
+TreadmillStroke.Color = Color3.fromRGB(105, 90, 190)
+TreadmillStroke.Thickness = 1.5
+TreadmillStroke.Transparency = 0.4
+TreadmillStroke.Parent = TreadmillBox
+
+local TreadmillLabel = Instance.new("TextLabel")
+TreadmillLabel.Size = UDim2.new(1, -60, 1, 0)
+TreadmillLabel.Position = UDim2.new(0, 12, 0, 0)
+TreadmillLabel.BackgroundTransparency = 1
+TreadmillLabel.Text = "Auto Upgrade Treadmill"
+TreadmillLabel.TextColor3 = Color3.fromRGB(220, 220, 235)
+TreadmillLabel.TextSize = 13
+TreadmillLabel.TextXAlignment = Enum.TextXAlignment.Left
+TreadmillLabel.TextYAlignment = Enum.TextYAlignment.Center
+TreadmillLabel.Font = Enum.Font.GothamBold
+TreadmillLabel.Parent = TreadmillBox
+
+local TreadmillCheckBtn = Instance.new("TextButton")
+TreadmillCheckBtn.Size = UDim2.new(0, 30, 0, 30)
+TreadmillCheckBtn.Position = UDim2.new(1, -40, 0.5, -15)
+TreadmillCheckBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+TreadmillCheckBtn.BackgroundTransparency = 0.85
+TreadmillCheckBtn.BorderSizePixel = 0
+TreadmillCheckBtn.Text = ""
+TreadmillCheckBtn.AutoButtonColor = false
+TreadmillCheckBtn.Parent = TreadmillBox
+
+local TreadmillCheckCorner = Instance.new("UICorner")
+TreadmillCheckCorner.CornerRadius = UDim.new(0, 8)
+TreadmillCheckCorner.Parent = TreadmillCheckBtn
+
+local TreadmillCheckStroke = Instance.new("UIStroke")
+TreadmillCheckStroke.Color = Color3.fromRGB(255, 255, 255)
+TreadmillCheckStroke.Thickness = 2
+TreadmillCheckStroke.Parent = TreadmillCheckBtn
+
+local TreadmillCheck = Instance.new("TextLabel")
+TreadmillCheck.Size = UDim2.new(1, 0, 1, 0)
+TreadmillCheck.BackgroundTransparency = 1
+TreadmillCheck.Text = "✓"
+TreadmillCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
+TreadmillCheck.TextSize = 20
+TreadmillCheck.Font = Enum.Font.GothamBold
+TreadmillCheck.Visible = false
+TreadmillCheck.Parent = TreadmillCheckBtn
+
+local AutoTreadmillEnabled = false
+
+local function UpgradeTreadmillLogic()
+    local afkSys = _G.YOKUDO_AFKSystem
+    if not afkSys then return end
+    local myPlot, myTreadmill = afkSys.FindMyPlotAndTreadmill()
+    if not myPlot then return end
+
+    local upgradePrompt = myPlot:FindFirstChild("TreadmillUpgrade", true)
+    if upgradePrompt then
+        for _, obj in ipairs(upgradePrompt:GetDescendants()) do
+            if obj:IsA("ProximityPrompt") and obj.Enabled then
+                if typeof(fireproximityprompt) == "function" then
+                    fireproximityprompt(obj, 0)
+                    fireproximityprompt(obj)
+                end
+            end
+        end
+    end
+end
+
+task.spawn(function()
+    while task.wait(5) do
+        if AutoTreadmillEnabled then
+            pcall(UpgradeTreadmillLogic)
+        end
+    end
+end)
+
+TreadmillCheckBtn.MouseButton1Click:Connect(function()
+    AutoTreadmillEnabled = not AutoTreadmillEnabled
+    TreadmillCheck.Visible = AutoTreadmillEnabled
+    if AutoTreadmillEnabled then
+        TreadmillCheckBtn.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+        TreadmillCheckBtn.BackgroundTransparency = 0
+        TreadmillCheckStroke.Color = Color3.fromRGB(135, 120, 225)
+    else
+        TreadmillCheckBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        TreadmillCheckBtn.BackgroundTransparency = 0.85
+        TreadmillCheckStroke.Color = Color3.fromRGB(255, 255, 255)
+    end
+end)
+
+--==================================================
 -- FEATURE 2: Start Check Egg
 --==================================================
 local CheckEggHolder = Instance.new("Frame")
 CheckEggHolder.Size = UDim2.new(1, 0, 0, 44)
 CheckEggHolder.BackgroundColor3 = Color3.fromRGB(28, 29, 42)
 CheckEggHolder.BorderSizePixel = 0
-CheckEggHolder.LayoutOrder = 3
+CheckEggHolder.LayoutOrder = 4
 CheckEggHolder.Parent = AutoFarmingPage
 
 local CheckEggHolderCorner = Instance.new("UICorner")
@@ -214,6 +316,33 @@ CheckEggCheck.TextSize = 20
 CheckEggCheck.Font = Enum.Font.GothamBold
 CheckEggCheck.Visible = false
 CheckEggCheck.Parent = CheckEggCheckButton
+
+--==================================================
+-- NEW FEATURE: Rarities Filter Button / Selector
+--==================================================
+local FilterHolder = Instance.new("Frame")
+FilterHolder.Size = UDim2.new(1, 0, 0, 35)
+FilterHolder.BackgroundColor3 = Color3.fromRGB(22, 23, 35)
+FilterHolder.BorderSizePixel = 0
+FilterHolder.LayoutOrder = 5
+FilterHolder.Parent = AutoFarmingPage
+
+local FilterCorner = Instance.new("UICorner")
+FilterCorner.CornerRadius = UDim.new(0, 6)
+FilterCorner.Parent = FilterHolder
+
+local FilterBtn = Instance.new("TextButton")
+FilterBtn.Size = UDim2.new(1, 0, 1, 0)
+FilterBtn.BackgroundTransparency = 1
+FilterBtn.Text = "Filter Rarity: [ All ]"
+FilterBtn.TextColor3 = Color3.fromRGB(180, 180, 220)
+FilterBtn.TextSize = 12
+FilterBtn.Font = Enum.Font.GothamBold
+FilterBtn.Parent = FilterHolder
+
+local RaritiesList = {"All", "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret"}
+local CurrentRarityIndex = 1
+local SelectedRarity = "All"
 
 local CheckEggEnabled = false
 local EggScrollFrame = nil
@@ -298,11 +427,7 @@ local function CreateEggEntry(EggData)
 
     SelectButton.MouseButton1Click:Connect(function()
         UpdateGetEggBox(EggData.Icon, EggData.DisplayName, EggData.EarningRate, EggData.Id)
-
-        -- ✅ Save EggData ទាំងមូល
         SelectedEggData = EggData
-
-        -- ✅ គ្រាន់តែ Save មិន Enable
         if _G.YOKUDO_AutoFarm then
             _G.YOKUDO_AutoFarm.SelectEgg(EggData)
         end
@@ -324,13 +449,29 @@ local function RefreshEggList()
     EggEntries = {}
 
     local Eggs = _G.YOKUDO_AutoFarm.ScanEggs()
+    local Count = 0
     for _, EggData in ipairs(Eggs) do
-        local Entry = CreateEggEntry(EggData)
-        table.insert(EggEntries, Entry)
+        -- تطبيق فلتر الندرة (Rarity Filter)
+        local eggRarity = EggData.Rarity or "Common"
+        if SelectedRarity == "All" or string.lower(eggRarity) == string.lower(SelectedRarity) then
+            local Entry = CreateEggEntry(EggData)
+            table.insert(EggEntries, Entry)
+            Count = Count + 1
+        end
     end
-    EggScrollFrame.CanvasSize = UDim2.new(0, 0, 0, #Eggs * 48)
-    CheckEggCount.Text = "Egg: " .. #Eggs
+    EggScrollFrame.CanvasSize = UDim2.new(0, 0, 0, Count * 48)
+    CheckEggCount.Text = "Egg: " .. Count
 end
+
+FilterBtn.MouseButton1Click:Connect(function()
+    CurrentRarityIndex = CurrentRarityIndex + 1
+    if CurrentRarityIndex > #RaritiesList then
+        CurrentRarityIndex = 1
+    end
+    SelectedRarity = RaritiesList[CurrentRarityIndex]
+    FilterBtn.Text = "Filter Rarity: [ " .. SelectedRarity .. " ]"
+    RefreshEggList()
+end)
 
 local function ToggleCheckEgg()
     CheckEggEnabled = not CheckEggEnabled
@@ -373,7 +514,7 @@ EggScrollFrame.BorderSizePixel = 0
 EggScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 EggScrollFrame.ScrollBarThickness = 4
 EggScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(200, 200, 220)
-EggScrollFrame.LayoutOrder = 4
+EggScrollFrame.LayoutOrder = 6
 EggScrollFrame.Parent = AutoFarmingPage
 
 local EggListLayout = Instance.new("UIListLayout")
@@ -403,4 +544,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ Auto Farming Tab Loaded")
+print("✅ Auto Farming Tab Loaded with Treadmill & Rarity Filter")
