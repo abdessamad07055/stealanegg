@@ -18,7 +18,7 @@ local Player = Players.LocalPlayer
 -- ==================================================
 local ATTACK_RANGE = 16
 local ATTACK_INTERVAL = 0.02
-local FOLLOW_SPEED = 700
+local FOLLOW_SPEED = 350
 local FOLLOW_BEHIND_DISTANCE = 3
 local SHORT_TP_DISTANCE = 15   -- ✅ ប្តូរពី 20 ទៅ 15
 local SPAWN_POSITION_1 = Vector3.new(2140, 77, -367)
