@@ -1,10 +1,11 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Attack Drone
--- Attack ONLY Top1 (AugmentedDrone) | Top2 (ReactorDrone) | Top3 (ScrapDrone)
+-- Attack ONLY Top1 | Top2 | Top3
 -- FOLLOW_SPEED = 500
 -- ✅ Fly TP មិន Lock + Stop ភ្លាម + Reset
 -- ✅ Lock CFrame តែពេល Follow Mob
 -- ✅ Restart ពេល Character Added
+-- ✅ StartAttack រង់ចាំ Fly TP ដល់ Safe Zone ពិតប្រាកដ
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -374,7 +375,7 @@ function StartFollow()
 end
 
 -- ==================================================
--- FLY TP TO POSITION (មិន Lock)
+-- FLY TP TO POSITION (✅ រង់ចាំដល់ Destination ពិតប្រាកដ)
 -- ==================================================
 function FlyTPToPosition(Destination, Callback)
     CleanupMovers()
@@ -591,8 +592,29 @@ local function StartAttack()
 
     StartAttackLoop()
 
+    -- ✅ Fly TP ទៅ Safe Zone → រង់ចាំដល់ → បន្ទាប់មក Spawn Loop
+    print("[AttackDrone] Fly to Safe Zone → Wait Arrive → Spawn Loop")
+
+    local SafeArrived = false
+
     FlyTPToPosition(SAFE_ZONE, function()
-        task.wait(SAFE_WAIT_TIME)
+        SafeArrived = true
+        print("[AttackDrone] ✅ Arrived at Safe Zone")
+    end)
+
+    -- រង់ចាំ Fly TP ដល់ Safe Zone ពិតប្រាកដ (Timeout 15s)
+    local WaitTime = 0
+    while AttackDroneEnabled and not SafeArrived and WaitTime < ARRIVE_TIMEOUT do
+        task.wait(0.1)
+        WaitTime = WaitTime + 0.1
+    end
+
+    if not AttackDroneEnabled then return end
+
+    print("[AttackDrone] Safe Zone Reached → Wait " .. SAFE_WAIT_TIME .. "s → Spawn Loop")
+    task.wait(SAFE_WAIT_TIME)
+
+    task.spawn(function()
         SpawnLoop()
     end)
 
@@ -630,14 +652,13 @@ local function StopAttackDrone()
 end
 
 -- ==================================================
--- AUTO RE-APPLY ON CHARACTER ADDED (✅ Restart ដូច User ធីកដំបូង)
+-- AUTO RE-APPLY ON CHARACTER ADDED (✅ Restart)
 -- ==================================================
 Player.CharacterAdded:Connect(function(Char)
     if AttackDroneEnabled then
         print("[AttackDrone] Character Added → Restarting...")
         task.wait(1)
 
-        -- ✅ Reset State ទាំងអស់
         CleanupMovers()
         CurrentTarget = nil
         CurrentTargetPriority = nil
@@ -647,18 +668,25 @@ Player.CharacterAdded:Connect(function(Char)
         LastFire = 0
         TraceSequence = 0
 
-        -- ✅ Save Stats ពី Character ថ្មី
         SaveLiveStats()
 
-        -- ✅ Restart Attack Loop
         StartAttackLoop()
 
-        -- ✅ Restart Spawn Loop
         task.spawn(function()
+            local SafeArrived = false
             FlyTPToPosition(SAFE_ZONE, function()
-                task.wait(SAFE_WAIT_TIME)
-                SpawnLoop()
+                SafeArrived = true
             end)
+
+            local WaitTime = 0
+            while AttackDroneEnabled and not SafeArrived and WaitTime < ARRIVE_TIMEOUT do
+                task.wait(0.1)
+                WaitTime = WaitTime + 0.1
+            end
+
+            if not AttackDroneEnabled then return end
+            task.wait(SAFE_WAIT_TIME)
+            SpawnLoop()
         end)
 
         print("[AttackDrone] ✅ Re-applied on new Character")
@@ -693,4 +721,4 @@ _G.YOKUDO_AttackDrone = {
     FOLLOW_SPEED = FOLLOW_SPEED
 }
 
-print("✅ AttackDrone Feature Loaded (Restart on Character Added)")
+print("✅ AttackDrone Feature Loaded (Wait Arrive Safe Zone)")
