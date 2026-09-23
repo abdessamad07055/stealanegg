@@ -1,7 +1,8 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Manager Drone
 -- គ្រប់គ្រង Event → ហៅ Attack ឬ AFK
--- ✅ Event ចេញ → Stop AFK → Jump Out → Safe Zone → Call Attack
+-- ✅ Event ចេញ → Stop AFK → Jump Out → Call Attack
+--    (AttackDrone គ្រប់គ្រង Fly TP ទៅ Safe Zone ខ្លួនឯង)
 -- ✅ Event Sec <= 10 → Stop Attack → Call AFK
 -- ✅ Stop ពេល Disable
 -- ✅ Restart ពេល Character Added
@@ -18,6 +19,7 @@ local EVENT_CHECK_INTERVAL = 1
 local EVENT_STOP_ATTACK_THRESHOLD = 10
 local SAFE_WAIT_TIME = 1
 local SAFE_ZONE = Vector3.new(533, 70, -366)
+local AFK_JUMP_WAIT = 0.5
 
 -- ==================================================
 -- STATE
@@ -67,7 +69,8 @@ end
 
 -- ==================================================
 -- SWITCH FROM AFK TO ATTACK
--- Event ចេញ → Stop AFK → Jump Out → Safe Zone → Call Attack
+-- Event ចេញ → Stop AFK → Jump Out → Call Attack
+-- AttackDrone គ្រប់គ្រង Fly TP ទៅ Safe Zone ខ្លួនឯង
 -- ==================================================
 local function SwitchAFKToAttack()
     print("[ManagerDrone] Event Detected → Switch AFK to Attack")
@@ -102,36 +105,17 @@ local function SwitchAFKToAttack()
     _G.YOKUDO_AFKSystem.JumpOutTreadmill(TreadmillPos, function()
         print("[ManagerDrone] ✅ Jumped out!")
 
-        -- 3. Stop AFK
+        -- 3. Stop AFK (បិទ AFKEnabled → FlyTP របស់ AFKSystem ឈប់)
         if _G.YOKUDO_AFKSystem then
             _G.YOKUDO_AFKSystem.Disable()
         end
 
-        task.wait(0.5)
+        task.wait(AFK_JUMP_WAIT)
 
-        -- 4. Fly TP ទៅ Safe Zone
-        print("[ManagerDrone] Fly to Safe Zone...")
-        local Hum, Root = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid"), Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
-        if Root then
-            if _G.YOKUDO_AFKSystem then
-                _G.YOKUDO_AFKSystem.FlyTP(SAFE_ZONE, function()
-                    task.wait(SAFE_WAIT_TIME)
-
-                    -- 5. Call Attack
-                    print("[ManagerDrone] Safe Zone Reached → Call Attack")
-                    if _G.YOKUDO_AttackDrone then
-                        _G.YOKUDO_AttackDrone.Start()
-                    end
-                end)
-            else
-                if _G.YOKUDO_AttackDrone then
-                    _G.YOKUDO_AttackDrone.Start()
-                end
-            end
-        else
-            if _G.YOKUDO_AttackDrone then
-                _G.YOKUDO_AttackDrone.Start()
-            end
+        -- 4. ហៅ Attack Drone (AttackDrone គ្រប់គ្រង Fly TP ទៅ Safe Zone ខ្លួនឯង)
+        print("[ManagerDrone] Call Attack Drone → Fly TP to Safe Zone → Spawn Loop")
+        if _G.YOKUDO_AttackDrone then
+            _G.YOKUDO_AttackDrone.Start()
         end
     end)
 end
@@ -236,18 +220,16 @@ local function ToggleManager()
 end
 
 -- ==================================================
--- AUTO RE-APPLY ON CHARACTER ADDED (✅ ថ្មី)
+-- AUTO RE-APPLY ON CHARACTER ADDED
 -- ==================================================
 Player.CharacterAdded:Connect(function(Char)
     if ManagerEnabled then
         print("[ManagerDrone] Character Added → Restarting Manager...")
         task.wait(1)
 
-        -- Reset State
         LastEventSec = 0
         LastEventText = ""
 
-        -- Restart Thread
         if ManagerThread then
             pcall(function() task.cancel(ManagerThread) end)
             ManagerThread = nil
@@ -272,4 +254,4 @@ _G.YOKUDO_ManagerDrone = {
     SwitchAFKToAttack = SwitchAFKToAttack,
 }
 
-print("✅ ManagerDrone Feature Loaded (Switch AFK to Attack + Safe Zone)")
+print("✅ ManagerDrone Feature Loaded (Switch AFK to Attack)")
