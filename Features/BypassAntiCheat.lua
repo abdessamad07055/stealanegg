@@ -1,6 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Bypass Anti Cheat
 -- Humanoid Replace + Anti Death
+-- ✅ Restart Features បន្ទាប់ពី Humanoid Replace
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -368,20 +369,61 @@ local function RunBypassAntiCheat()
 end
 
 -- ==================================================
+-- RESTART FEATURES AFTER HUMANOID REPLACE (✅ ថ្មី)
+-- ==================================================
+local function RestartFeaturesAfterReplace()
+    print("[YOKUDO] Restarting Features after Humanoid Replace...")
+
+    -- 1. Restart AttackDrone
+    if _G.YOKUDO_AttackDrone and _G.YOKUDO_AttackDrone.IsEnabled() then
+        print("[YOKUDO] → Restarting AttackDrone")
+        pcall(function()
+            _G.YOKUDO_AttackDrone.Stop()
+        end)
+        task.wait(0.5)
+        pcall(function()
+            _G.YOKUDO_AttackDrone.Start()
+        end)
+    end
+
+    -- 2. Restart AFKSystem
+    if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
+        print("[YOKUDO] → Restarting AFKSystem")
+        pcall(function()
+            _G.YOKUDO_AFKSystem.Disable()
+        end)
+        task.wait(0.5)
+        pcall(function()
+            _G.YOKUDO_AFKSystem.Enable()
+        end)
+    end
+
+    print("[YOKUDO] ✅ Features Restarted")
+end
+
+-- ==================================================
 -- AUTO RE-RUN ON CHARACTER ADDED
 -- ==================================================
 Player.CharacterAdded:Connect(function(Character)
     task.wait(1) -- រង់ចាំ Character Load
     RunBypassAntiCheat()
     print("[YOKUDO] Bypass Anti Cheat: Re-applied on new Character")
+
+    -- ✅ Restart Features បន្ទាប់ពី Humanoid Replace
+    task.wait(1.5) -- រង់ចាំ Humanoid Replace បញ្ចប់
+    RestartFeaturesAfterReplace()
 end)
 
 -- ==================================================
 -- RUN IMMEDIATELY
 -- ==================================================
 task.spawn(function()
-    task.wait(1)
+    task.wait(2) -- ✅ រង់ចាំ Features ផ្សេង Load មុន
     RunBypassAntiCheat()
+
+    -- ✅ Restart Features បន្ទាប់ពី Humanoid Replace ដំបូង
+    task.wait(1.5)
+    RestartFeaturesAfterReplace()
 end)
 
-print("✅ BypassAntiCheat Feature Loaded")
+print("✅ BypassAntiCheat Feature Loaded (Restart Features)")
